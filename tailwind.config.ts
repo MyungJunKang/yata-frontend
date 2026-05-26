@@ -11,6 +11,96 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // ----- Primitives -----
+        point: {
+          50: "var(--color-point-50)",
+          100: "var(--color-point-100)",
+          200: "var(--color-point-200)",
+          300: "var(--color-point-300)",
+          400: "var(--color-point-400)",
+          500: "var(--color-point-500)",
+          600: "var(--color-point-600)",
+          700: "var(--color-point-700)",
+          800: "var(--color-point-800)",
+        },
+        gray: {
+          "050": "var(--color-gray-050)",
+          100: "var(--color-gray-100)",
+          200: "var(--color-gray-200)",
+          300: "var(--color-gray-300)",
+          400: "var(--color-gray-400)",
+          500: "var(--color-gray-500)",
+          600: "var(--color-gray-600)",
+          700: "var(--color-gray-700)",
+          800: "var(--color-gray-800)",
+          900: "var(--color-gray-900)",
+        },
+        red: {
+          100: "var(--color-red-100)",
+          200: "var(--color-red-200)",
+          300: "var(--color-red-300)",
+          400: "var(--color-red-400)",
+          500: "var(--color-red-500)",
+        },
+        yellow: {
+          100: "var(--color-yellow-100)",
+          300: "var(--color-yellow-300)",
+          400: "var(--color-yellow-400)",
+          500: "var(--color-yellow-500)",
+          700: "var(--color-yellow-700)",
+        },
+        green: {
+          100: "var(--color-green-100)",
+          300: "var(--color-green-300)",
+          500: "var(--color-green-500)",
+          700: "var(--color-green-700)",
+        },
+
+        // ----- Semantic — Background -----
+        bg: {
+          normal: "var(--bg-normal)",
+          elevated: "var(--bg-elevated)",
+          page: "var(--bg-page)",
+          subtle: "var(--bg-subtle)",
+          button: "var(--bg-button)",
+          disabled: "var(--bg-disabled)",
+        },
+
+        // ----- Semantic — Text (use as text-fg-*) -----
+        fg: {
+          primary: "var(--text-primary)",
+          secondary: "var(--text-secondary)",
+          tertiary: "var(--text-tertiary)",
+          disabled: "var(--text-disabled)",
+          inverse: "var(--text-inverse)",
+          point: "var(--text-point)",
+          warning: "var(--text-warning)",
+        },
+
+        // ----- Semantic — Border (use as border-stroke-*) -----
+        stroke: {
+          thin: "var(--border-thin)",
+          normal: "var(--border-normal)",
+          thick: "var(--border-thick)",
+          point: "var(--border-point)",
+          "point-hover": "var(--border-point-hover)",
+          warning: "var(--border-warning)",
+          secondary: "var(--border-secondary)",
+        },
+
+        // ----- Semantic — Status -----
+        status: {
+          "success-bg": "var(--status-success-bg)",
+          "success-border": "var(--status-success-border)",
+          success: "var(--status-success)",
+          "success-strong": "var(--status-success-strong)",
+          "pending-bg": "var(--status-pending-bg)",
+          "pending-border": "var(--status-pending-border)",
+          pending: "var(--status-pending)",
+          "pending-strong": "var(--status-pending-strong)",
+        },
+
+        // ----- shadcn/ui 호환 -----
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -46,9 +136,24 @@ const config: Config = {
         },
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        xs: "var(--radius-xs)",
+        sm: "var(--radius-sm)",
+        md: "var(--radius-md)",
+        lg: "var(--radius-lg)",
+        xl: "var(--radius-xl)",
+        "2xl": "var(--radius-2xl)",
+      },
+      boxShadow: {
+        sm: "var(--shadow-sm)",
+        md: "var(--shadow-md)",
+        lg: "var(--shadow-lg)",
+        xl: "var(--shadow-xl)",
+        point: "var(--shadow-point)",
+      },
+      fontFamily: {
+        sans: ["var(--font-body)"],
+        display: ["var(--font-display)"],
+        mono: ["var(--font-mono)"],
       },
       keyframes: {
         "accordion-down": {
