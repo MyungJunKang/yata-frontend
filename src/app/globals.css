@@ -296,7 +296,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-bg-page text-foreground antialiased;
     font-family: var(--font-body);
   }
 }

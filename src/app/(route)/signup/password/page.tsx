@@ -1,0 +1,14 @@
+import { AuthAppBar } from "@/features/auth/components/auth-app-bar";
+import { SignupStepTwoForm } from "@/features/auth/components/signup-step-two-form";
+
+export default function SignupPasswordPage() {
+  return (
+    <div className="flex min-h-[100dvh] w-full flex-col bg-bg-normal px-5 pb-6">
+      <AuthAppBar backHref="/signup" />
+      <SignupStepTwoForm />
+      <p className="mt-6 text-center text-[12px] font-medium leading-[1.7] text-fg-tertiary">
+        가입 시 이용약관에 동의하게 됩니다.
+      </p>
+    </div>
+  );
+}

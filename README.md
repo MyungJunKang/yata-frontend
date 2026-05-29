@@ -33,23 +33,46 @@ npm run start    # 빌드 결과 실행
 npm run lint     # ESLint
 ```
 
-## 프로젝트 구조
+## 프로젝트 구조 (Feature-based)
 
 ```
 src/
-├── app/              # App Router 라우트 · 레이아웃 · 전역 스타일
-│   ├── fonts/        # Pretendard Variable
-│   ├── globals.css   # 디자인 토큰 (CSS Variables)
-│   └── layout.tsx
+├── app/                          # App Router 진입점
+│   ├── (route)/                  # 라우트 그룹 — 모든 페이지가 여기에
+│   │   ├── page.tsx              # /
+│   │   └── login/
+│   │       └── page.tsx          # /login
+│   ├── fonts/                    # Pretendard Variable
+│   ├── globals.css               # 디자인 토큰 (CSS Variables)
+│   └── layout.tsx                # 루트 레이아웃
+│
+├── features/                     # 기능 단위 모듈
+│   └── auth/
+│       └── components/
+│           └── login-form.tsx
+│       # 추후 추가될 폴더 예시
+│       # ├── hooks/              # useLogin 등 feature 훅
+│       # ├── api/                # 인증 서비스 함수
+│       # └── types/              # 인증 도메인 타입
+│
 ├── components/
-│   └── ui/           # shadcn/ui 컴포넌트
-├── lib/              # 유틸리티 (cn 등)
-├── providers/        # QueryProvider 등 글로벌 Provider
-├── queries/          # TanStack Query - 조회용 훅
-├── mutations/        # TanStack Query - 변경용 훅
-├── services/         # API 통신 레이어
-└── types/            # 공용 타입
+│   └── ui/                       # 전역 공용 UI 프리미티브 (shadcn)
+│       ├── button.tsx
+│       └── input.tsx
+│
+├── lib/                          # 전역 유틸 (cn 등)
+│   └── utils.ts
+│
+└── providers/                    # 전역 Provider
+    └── query-provider.tsx
 ```
+
+### 폴더 규칙
+
+- **`app/(route)/`** — 라우트(`page.tsx`, `layout.tsx`)만 위치. 비즈니스 로직 없음, 가능한 한 얇게.
+- **`features/<feature>/`** — 한 기능의 컴포넌트·훅·API·타입을 colocation. 다른 feature에서 직접 import 금지.
+- **`components/ui/`** — 여러 feature가 공유하는 디자인 시스템 프리미티브만.
+- **`lib/` · `providers/`** — 전역 공통.
 
 ## 디자인 시스템
 

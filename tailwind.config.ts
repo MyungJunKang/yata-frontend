@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 const config: Config = {
   darkMode: ["class"],
@@ -164,13 +165,26 @@ const config: Config = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "mascot-drive": {
+          "0%, 100%": { transform: "translateY(0) rotate(-1.5deg)" },
+          "25%": { transform: "translateY(-4px) rotate(1.5deg)" },
+          "50%": { transform: "translateY(0) rotate(-1deg)" },
+          "75%": { transform: "translateY(-2px) rotate(1deg)" },
+        },
+        "motion-line": {
+          "0%": { transform: "translateX(60px)", opacity: "0" },
+          "15%": { opacity: "0.85" },
+          "100%": { transform: "translateX(-140px)", opacity: "0" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "mascot-drive": "mascot-drive 0.7s ease-in-out infinite",
+        "motion-line": "motion-line 0.9s linear infinite",
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 };
 export default config;
