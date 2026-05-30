@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowRight, Lock, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useSignUp } from "@/features/auth/api/use-sign-up";
 import { SignupFormField } from "@/features/auth/components/signup-form-field";
 import { SignupProgress } from "@/features/auth/components/signup-progress";
 import { useSignup } from "@/features/auth/components/signup-context";
-import { setAuthToken } from "@/features/auth/lib/auth-storage";
 import { validateStepThree } from "@/features/auth/lib/signup-validation";
+import { ApiError } from "@/lib/api-client";
+import type { SignUpRequest } from "@/features/auth/api/auth.types";
 
 const BANKS = [
   "KB국민은행",
@@ -29,11 +30,11 @@ const BANKS = [
 ] as const;
 
 export function SignupStepThreeForm() {
-  const router = useRouter();
   const { draft, setField, reset } = useSignup();
   const [errors, setErrors] = useState<ReturnType<typeof validateStepThree>>(
     {},
   );
+  const signUpMutation = useSignUp({ onSettled: () => reset() });
 
   const isValid = Object.keys(validateStepThree(draft)).length === 0;
 
@@ -42,11 +43,26 @@ export function SignupStepThreeForm() {
     const errs = validateStepThree(draft);
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
-    // TODO: 회원가입 API 호출 (TanStack Query mutation)
-    setAuthToken("signup-stub-token");
-    reset();
-    router.replace("/home");
+
+    // TODO: 은행 계좌(bank/accountNumber/accountHolder)는 별도 /accounts 엔드포인트 연동 시 전송
+    const body: SignUpRequest = {
+      name: draft.name!,
+      email: draft.email!,
+      phone: draft.phone!,
+      gender: draft.gender!,
+      dept: draft.department!,
+      year: draft.studentId!,
+      password: draft.password!,
+    };
+    signUpMutation.mutate(body);
   };
+
+  const submitError =
+    signUpMutation.error instanceof ApiError
+      ? signUpMutation.error.message
+      : signUpMutation.error
+        ? "회원가입 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요."
+        : null;
 
   const blur = (key: keyof typeof errors) => () => {
     const errs = validateStepThree(draft);
@@ -159,13 +175,22 @@ export function SignupStepThreeForm() {
         </div>
       </div>
 
+      {submitError && (
+        <p
+          role="alert"
+          className="rounded-sm bg-red-100 px-3 py-2 text-[12px] font-medium text-fg-warning"
+        >
+          {submitError}
+        </p>
+      )}
+
       <Button
         type="submit"
-        disabled={!isValid}
+        disabled={!isValid || signUpMutation.isPending}
         className="mt-2 h-14 w-full rounded-md bg-point-500 text-base font-bold text-fg-inverse hover:bg-point-600 disabled:bg-bg-disabled disabled:text-fg-disabled disabled:opacity-100"
       >
-        회원가입 완료
-        <ArrowRight />
+        {signUpMutation.isPending ? "가입 중…" : "회원가입 완료"}
+        {!signUpMutation.isPending && <ArrowRight />}
       </Button>
     </form>
   );

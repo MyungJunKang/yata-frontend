@@ -7,7 +7,9 @@ import { ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useSignIn } from "@/features/auth/api/use-sign-in";
 import { EmailSsuInput } from "@/features/auth/components/email-ssu-input";
+import { ApiError } from "@/lib/api-client";
 
 function validateEmail(value: string): string {
   if (!value) return "이메일을 입력해 주세요.";
@@ -26,6 +28,7 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const signInMutation = useSignIn();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,8 +37,17 @@ export function LoginForm() {
     setEmailError(eErr);
     setPasswordError(pErr);
     if (eErr || pErr) return;
-    // TODO: 로그인 API 연동 (TanStack Query mutation)
+    signInMutation.mutate({ email, password });
   };
+
+  const submitError =
+    signInMutation.error instanceof ApiError
+      ? signInMutation.error.status === 401
+        ? "이메일 또는 비밀번호가 일치하지 않아요."
+        : signInMutation.error.message
+      : signInMutation.error
+        ? "로그인 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요."
+        : null;
 
   return (
     <div className="flex min-h-[100dvh] w-full flex-col items-center bg-bg-page px-6 pb-6 pt-8">
@@ -134,12 +146,22 @@ export function LoginForm() {
           )}
         </div>
 
+        {submitError && (
+          <p
+            role="alert"
+            className="rounded-sm bg-red-100 px-3 py-2 text-[12px] font-medium text-fg-warning"
+          >
+            {submitError}
+          </p>
+        )}
+
         <Button
           type="submit"
-          className="h-14 w-full rounded-sm bg-point-500 text-base font-bold text-fg-inverse hover:bg-point-600"
+          disabled={signInMutation.isPending}
+          className="h-14 w-full rounded-sm bg-point-500 text-base font-bold text-fg-inverse hover:bg-point-600 disabled:bg-bg-disabled disabled:text-fg-disabled disabled:opacity-100"
         >
-          로그인
-          <ArrowRight />
+          {signInMutation.isPending ? "로그인 중…" : "로그인"}
+          {!signInMutation.isPending && <ArrowRight />}
         </Button>
 
         <Link

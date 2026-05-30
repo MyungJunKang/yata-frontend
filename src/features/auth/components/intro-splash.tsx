@@ -4,14 +4,14 @@ import { useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 
-import { isAuthenticated } from "@/features/auth/lib/auth-storage";
-
 export function IntroSplash() {
   const router = useRouter();
 
   useEffect(() => {
+    // 인증된 사용자는 미들웨어에서 이미 /home 으로 리다이렉트됐고,
+    // 여기는 미인증 사용자만 도달하므로 항상 /login 으로 보낸다.
     const t = window.setTimeout(() => {
-      router.replace(isAuthenticated() ? "/home" : "/login");
+      router.replace("/login");
     }, 1000);
     return () => window.clearTimeout(t);
   }, [router]);
