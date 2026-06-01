@@ -1,6 +1,6 @@
 import { UserGender, UserType } from "@/features/user/api/user.types";
 
-export type SignInRequest = {
+export type SignInBody = {
   email: string;
   password: string;
 };
@@ -10,7 +10,7 @@ export type SignInResponse = {
   user: UserType;
 };
 
-export type SignUpRequest = {
+export type SignUpBody = {
   name: string;
   email: string;
   phone: string;

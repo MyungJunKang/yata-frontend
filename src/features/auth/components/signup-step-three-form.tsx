@@ -12,7 +12,7 @@ import { SignupProgress } from "@/features/auth/components/signup-progress";
 import { useSignup } from "@/features/auth/components/signup-context";
 import { validateStepThree } from "@/features/auth/lib/signup-validation";
 import { ApiError } from "@/lib/api-client";
-import type { SignUpRequest } from "@/features/auth/api/auth.types";
+import type { SignUpBody } from "@/features/auth/api/auth.types";
 
 const BANKS = [
   "KB국민은행",
@@ -45,7 +45,7 @@ export function SignupStepThreeForm() {
     if (Object.keys(errs).length > 0) return;
 
     // TODO: 은행 계좌(bank/accountNumber/accountHolder)는 별도 /accounts 엔드포인트 연동 시 전송
-    const body: SignUpRequest = {
+    const body: SignUpBody = {
       name: draft.name!,
       email: draft.email!,
       phone: draft.phone!,

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { JotaiProvider } from "@/providers/jotai-provider";
 import { QueryProvider } from "@/providers/query-provider";
 
 const pretendard = localFont({
@@ -34,11 +35,13 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className={pretendard.variable}>
-        <QueryProvider>
-          <main className="mx-auto w-full max-w-screen-sm px-4 sm:px-6 md:max-w-screen-md lg:max-w-screen-lg lg:px-8">
-            {children}
-          </main>
-        </QueryProvider>
+        <JotaiProvider>
+          <QueryProvider>
+            <main className="mx-auto w-full max-w-screen-sm px-4 sm:px-6 md:max-w-screen-md lg:max-w-screen-lg lg:px-8">
+              {children}
+            </main>
+          </QueryProvider>
+        </JotaiProvider>
       </body>
     </html>
   );
