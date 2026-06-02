@@ -1,29 +1,39 @@
-export type SettlementMemberStatus = "pending" | "paid";
+export type SettlementMemberStatus = "unpaid" | "paid" | "confirmed";
 
 export type SettlementMember = {
   userId: string;
   name: string;
   status: SettlementMemberStatus;
   paidAt: string | null;
+  confirmedAt: string | null;
+};
+
+export type PaymentAccount = {
+  bank: string;
+  accountNumber: string;
+  holder: string;
 };
 
 export type Settlement = {
-  roomId: string;
+  announcementMessageId?: string;
   totalFare: number;
-  perPersonFare: number;
-  capacity: number;
-  hostAccount: {
-    bank: string;
-    accountNumber: string;
-    holder: string;
-  } | null;
-  members: SettlementMember[];
-  createdAt: string;
+  perPersonAmount: number;
+  /** 정산 대상 인원 (응답에 없는 경우도 있어 optional) */
+  membersCount?: number;
+  imageUrl?: string | null;
+  members?: SettlementMember[];
+  allConfirmed?: boolean;
+  /** PaymentAccount JSON 문자열 — 파싱 필요 */
+  payout?: string | null;
+  createdAt?: string;
 };
 
-// TODO: 백엔드가 어떤 필드를 필요로 하는지 확인 후 보강.
-// 현재 POST /rooms/:id/settlement 는 totalFare/actualFare/amount 등 단독 / 조합 모두
-// MISSING_FIELDS 응답 → 추가 필드(예: bankAccountId, paymentMethod 등) 합의 필요.
 export type CreateSettlementBody = {
   totalFare: number;
+  perPersonAmount: number;
+  membersCount: number;
+  /** PaymentAccount JSON.stringify(...) */
+  payout?: string;
+  /** 정산 영수증 이미지 (선택) */
+  image?: File;
 };
