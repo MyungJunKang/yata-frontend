@@ -83,9 +83,25 @@ export function loadKakaoSdk(): Promise<KakaoNamespace> {
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appkey}&autoload=false`;
     script.async = true;
     script.onload = () => {
+      if (!window.kakao || !window.kakao.maps) {
+        // 카카오 콘솔의 도메인 허용 거부 등 — sdk.js 응답이 비어있는 케이스
+        kakaoLoadPromise = null;
+        script.remove();
+        reject(
+          new Error(
+            "Kakao SDK 로드 실패 — 카카오 개발자 콘솔 플랫폼 도메인에 현재 origin 이 등록되어 있는지 확인하세요.",
+          ),
+        );
+        return;
+      }
       window.kakao.maps.load(() => resolve(window.kakao));
     };
-    script.onerror = () => reject(new Error("Kakao SDK 로드 실패"));
+    script.onerror = () => {
+      // 실패한 promise 를 module scope 에 남기지 않음 → 다음 호출 시 재시도 가능
+      kakaoLoadPromise = null;
+      script.remove();
+      reject(new Error("Kakao SDK 로드 실패 — 네트워크 또는 도메인 차단."));
+    };
     document.head.appendChild(script);
   });
   return kakaoLoadPromise;

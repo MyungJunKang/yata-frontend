@@ -309,4 +309,23 @@
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  /* Apple-style 통일 easing — sheet/modal/button 전부 동일 곡선 */
+  :root {
+    --ease-apple: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  /* 클릭 가능한 요소에 부착 — 눌렀을 때 살짝 scale down */
+  .tap-spring {
+    transition: transform 150ms var(--ease-apple);
+    will-change: transform;
+  }
+  .tap-spring:active {
+    transform: scale(0.97);
+  }
+
+  /* 금액·시간 등 숫자 row 컬럼 정렬용 */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 }

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type Period = "오전" | "오후";
@@ -140,13 +141,14 @@ export function TimePickerSheet({ open, initial, onClose, onConfirm }: Props) {
         </div>
 
         <div className="px-5 pb-6 pt-5">
-          <button
-            type="button"
+          <Button
+            variant="point"
+            size="lg"
+            className="w-full"
             onClick={handleConfirm}
-            className="flex h-14 w-full items-center justify-center rounded-md bg-point-500 text-base font-bold text-fg-inverse hover:bg-point-600"
           >
             확인
-          </button>
+          </Button>
         </div>
       </div>
     </div>

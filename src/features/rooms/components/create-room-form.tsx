@@ -12,6 +12,7 @@ import {
   Car,
 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { cn } from "@/lib/utils";
 import { useCreateRoomMutation } from "@/features/rooms/api/use-create-room";
@@ -101,19 +102,24 @@ export function CreateRoomForm() {
     setTo(from);
   };
 
-  const isReady = !!from && !!to;
+  const isReady = !!from && !!to && totalFare != null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!from || !to) return;
+    if (!from || !to || totalFare == null) return;
     const body: CreateRoomBody = {
       startPoint: from.name,
+      startLat: from.lat,
+      startLng: from.lng,
       endPoint: to.name,
+      endLat: to.lat,
+      endLng: to.lng,
       departAt: departTime.toISOString(),
       capacity,
       // TODO: "동성만" 선택 시 본인 성별을 /me 등으로 받아와 male|female 로 보내야 함
       genderPolicy: genderChoice === "all" ? "all" : "male",
       message,
+      totalFare,
     };
     mutation.mutate(body);
   };
@@ -234,7 +240,7 @@ export function CreateRoomForm() {
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="예: 시험 끝나고 바로 출발해요. 정문 스타벅스 앞에서 모여요!"
+          placeholder="동승자에게 전할 메시지를 입력하세요"
           maxLength={200}
           rows={3}
           className="mt-3 w-full resize-none rounded-md bg-bg-subtle px-3 py-2.5 text-body-2 text-fg-primary placeholder:text-fg-tertiary focus:outline-none focus:ring-1 focus:ring-stroke-point"
@@ -259,22 +265,26 @@ export function CreateRoomForm() {
 
       {/* 하단 sticky bar */}
       <div className="sticky bottom-0 -mx-5 mt-4 border-t border-stroke-thin bg-bg-normal px-5 pb-4 pt-3">
-        <div className="flex items-center justify-between pb-3">
-          <div className="flex flex-col">
+        <div className="flex items-end justify-between pb-3">
+          <div className="flex flex-col leading-tight">
             <span className="text-caption-1 text-fg-tertiary">예상 출발</span>
-            <span className="text-strong-2 text-fg-primary">
+            <span className="text-strong-2 text-fg-primary tabular">
               오늘 · {toHHMMValue(departTime)}
             </span>
           </div>
-          <div className="flex flex-col items-end">
+          <div className="flex flex-col items-end leading-tight">
             <span className="text-caption-1 text-fg-tertiary">1인 예상</span>
-            <span className="text-strong-1 text-fg-point">{fareLabel}</span>
+            <span className="text-strong-1 text-fg-point tabular">
+              {fareLabel}
+            </span>
           </div>
         </div>
-        <button
+        <Button
           type="submit"
+          variant="point"
+          size="lg"
+          className="w-full"
           disabled={!isReady || mutation.isPending}
-          className="flex h-14 w-full items-center justify-center gap-2 rounded-md bg-point-500 text-base font-bold text-fg-inverse hover:bg-point-600 disabled:bg-bg-disabled disabled:text-fg-disabled"
         >
           <Car className="size-5" />
           {mutation.isPending
@@ -282,7 +292,7 @@ export function CreateRoomForm() {
             : isReady
               ? "방 만들고 동승자 모집하기"
               : "출발지·도착지를 선택해 주세요"}
-        </button>
+        </Button>
       </div>
     </form>
   );

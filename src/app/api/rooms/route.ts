@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 
-import { AUTH_COOKIE_NAME } from "@/lib/auth-cookie";
 import { backendFetch } from "@/lib/backend-fetch";
-
-function getAuthHeader(): Record<string, string> {
-  const token = cookies().get(AUTH_COOKIE_NAME)?.value;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+import { getAuthHeader } from "@/lib/bff-auth";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
