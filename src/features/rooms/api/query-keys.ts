@@ -5,4 +5,6 @@ export const roomKeys = {
   lists: () => [...roomKeys.all, "list"] as const,
   list: (params: GetRoomsParams) =>
     [...roomKeys.lists(), params] as const,
+  detail: (id: string) => [...roomKeys.all, "detail", id] as const,
+  settlement: (id: string) => [...roomKeys.all, "settlement", id] as const,
 };
