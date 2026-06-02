@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
+import { YataLogo } from "@/components/ui/yata-logo";
+
 export function AuthAppBar({
   backHref,
   title = "회원가입",
@@ -18,12 +20,7 @@ export function AuthAppBar({
         <ChevronLeft className="size-6 text-fg-primary" />
       </Link>
       <h1 className="text-strong-1 text-fg-primary">{title}</h1>
-      <span
-        aria-hidden
-        className="font-display text-[20px] font-extrabold italic tracking-[-0.04em] text-fg-primary"
-      >
-        YATA
-      </span>
+      <YataLogo />
     </header>
   );
 }
