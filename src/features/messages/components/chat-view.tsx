@@ -8,18 +8,21 @@ import {
   useMessagesQuery,
   useSendMessageMutation,
 } from "@/features/messages/api/use-messages";
+import { useSettlementQuery } from "@/features/rooms/api/use-settlement";
 import type { UserType } from "@/features/user/api/user.types";
 import { MessageBubble } from "@/features/messages/components/message-bubble";
 import { MessageInput } from "@/features/messages/components/message-input";
+import { SettlementNoticeCard } from "@/features/rooms/components/settlement-notice-card";
 
 type Props = {
   roomId: string;
   me: UserType | undefined;
+  isHost?: boolean;
 };
 
 const STICK_THRESHOLD_PX = 80;
 
-export function ChatView({ roomId, me }: Props) {
+export function ChatView({ roomId, me, isHost }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const stickyRef = useRef(true);
@@ -27,12 +30,33 @@ export function ChatView({ roomId, me }: Props) {
 
   const messagesQuery = useMessagesQuery(roomId);
   const sendMutation = useSendMessageMutation(roomId, me);
+  const settlementQuery = useSettlementQuery(roomId);
+  const settlement = settlementQuery.data ?? null;
 
   // image 종류는 아직 미지원 — 표시 자체를 안 함
   const messages = useMemo(
     () => (messagesQuery.data ?? []).filter((m) => m.kind !== "image"),
     [messagesQuery.data],
   );
+  const hasAnnouncement = messages.some((m) => m.kind === "announcement");
+  const lastSettlementRefetchRef = useRef<string | null>(null);
+
+  // 새 announcement 가 도착하면 settlement 도 즉시 재조회 (members 상태 받아오기)
+  useEffect(() => {
+    if (!hasAnnouncement) return;
+    const lastAnnouncementId =
+      messages
+        .filter((m) => m.kind === "announcement")
+        .map((m) => m.id)
+        .pop() ?? null;
+    if (
+      lastAnnouncementId &&
+      lastSettlementRefetchRef.current !== lastAnnouncementId
+    ) {
+      lastSettlementRefetchRef.current = lastAnnouncementId;
+      settlementQuery.refetch();
+    }
+  }, [hasAnnouncement, messages, settlementQuery]);
 
   // 스크롤 위치 추적 → bottom 근처에 있으면 sticky=true
   useEffect(() => {
@@ -72,6 +96,31 @@ export function ChatView({ roomId, me }: Props) {
 
   const renderItems = useMemo(() => {
     return messages.map((m, i) => {
+      // announcement 메시지는 별도 GET /settlement 응답을 결합해 정산 카드로 렌더
+      if (m.kind === "announcement") {
+        if (!settlement) {
+          // 정산 데이터 아직 도착 전 — 메시지 데이터로 임시 표시
+          const fallback = pickSettlementFromMessage(m.data);
+          return fallback ? (
+            <SettlementNoticeCard
+              key={m.id}
+              roomId={roomId}
+              settlement={{ ...fallback, createdAt: m.createdAt }}
+              meId={me?.id ?? null}
+              isHost={isHost}
+            />
+          ) : null;
+        }
+        return (
+          <SettlementNoticeCard
+            key={m.id}
+            roomId={roomId}
+            settlement={{ ...settlement, createdAt: m.createdAt }}
+            meId={me?.id ?? null}
+            isHost={isHost}
+          />
+        );
+      }
       const prev = messages[i - 1];
       const showHeader =
         !prev ||
@@ -91,7 +140,7 @@ export function ChatView({ roomId, me }: Props) {
         />
       );
     });
-  }, [messages, me?.id]);
+  }, [messages, me?.id, isHost, roomId, settlement]);
 
   return (
     <div className="relative flex h-full w-full flex-col">
@@ -138,4 +187,28 @@ export function ChatView({ roomId, me }: Props) {
       <MessageInput onSend={handleSend} disabled={sendMutation.isPending} />
     </div>
   );
+}
+
+/**
+ * announcement 메시지의 data 필드(문자열 숫자) 로 만든 임시 settlement.
+ * 실제 members/status 는 GET /settlement 응답으로만 받을 수 있음.
+ */
+function pickSettlementFromMessage(
+  d: Record<string, unknown> | null,
+): {
+  totalFare: number;
+  perPersonAmount: number;
+  membersCount: number;
+  imageUrl: string | null;
+} | null {
+  if (!d || typeof d !== "object") return null;
+  const total = Number(d.totalFare ?? 0);
+  const per = Number(d.perPersonAmount ?? 0);
+  if (!total && !per) return null;
+  return {
+    totalFare: total,
+    perPersonAmount: per,
+    membersCount: Number(d.membersCount ?? 0),
+    imageUrl: d.imageUrl != null ? String(d.imageUrl) : null,
+  };
 }

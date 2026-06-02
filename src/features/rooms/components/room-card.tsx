@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { formatDepartAt } from "@/features/rooms/lib/format";
 import type { RoomType } from "@/features/rooms/api/room.types";
 import { useJoinRoomMutation } from "@/features/rooms/api/use-room-actions";
+import { useUserQuery } from "@/features/user/api/use-user";
 import { ApiError } from "@/lib/api-client";
 
 type Props = {
@@ -18,11 +19,21 @@ type Props = {
 
 export function RoomCard({ room, isLocked = false }: Props) {
   const router = useRouter();
+  const userQuery = useUserQuery();
+  const me = userQuery.data;
+  const isMine =
+    !!me &&
+    (me.id === room.host.userId || me.activeRoomId === room.id);
   const isFull = room.joinedCount >= room.maxCount;
   const joinMutation = useJoinRoomMutation();
-  const isDisabled = isLocked || isFull;
+  // 본인 방이면 join 시도 X, lock 도 무시 (바로 진입 가능)
+  const isDisabled = !isMine && (isLocked || isFull);
 
-  const handleJoin = () => {
+  const handleEnter = () => {
+    if (isMine) {
+      router.push(`/room/${room.id}`);
+      return;
+    }
     if (isDisabled || joinMutation.isPending) return;
     joinMutation.mutate(room.id, {
       onSuccess: () => router.push(`/room/${room.id}`),
@@ -40,8 +51,9 @@ export function RoomCard({ room, isLocked = false }: Props) {
     <article
       className={cn(
         "flex flex-col gap-4 rounded-2xl bg-bg-normal p-4 shadow-sm transition-opacity",
-        isFull && "opacity-70",
-        isLocked && "opacity-50",
+        isFull && !isMine && "opacity-70",
+        isLocked && !isMine && "opacity-50",
+        isMine && "ring-1 ring-stroke-point",
       )}
     >
       <div className="flex items-start gap-3">
@@ -87,12 +99,16 @@ export function RoomCard({ room, isLocked = false }: Props) {
           </span>
         </div>
         <Button
-          variant={isDisabled ? "point-soft" : "point"}
+          variant={isMine ? "point" : isDisabled ? "point-soft" : "point"}
           size="md"
-          onClick={handleJoin}
-          disabled={isDisabled || joinMutation.isPending}
+          onClick={handleEnter}
+          disabled={!isMine && (isDisabled || joinMutation.isPending)}
         >
-          {joinMutation.isPending ? "참여 중…" : "방 참여하기"}
+          {isMine
+            ? "방으로 이동"
+            : joinMutation.isPending
+              ? "참여 중…"
+              : "방 참여하기"}
         </Button>
       </div>
 
