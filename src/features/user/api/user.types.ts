@@ -12,3 +12,8 @@ export type UserType = {
   isVerified: boolean;
   activeRoomId: string | null;
 };
+
+export type UserStatsResponse = {
+  totalRides: number;
+  savedAmountWon: number;
+};

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useSetAtom } from "jotai";
 import { ChevronLeft, MapPin, Search, X } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   getNearbyPlaces,
@@ -423,14 +424,15 @@ export function LocationPicker({ kind }: Props) {
             )}
           </div>
         </div>
-        <button
-          type="button"
+        <Button
+          variant="point"
+          size="lg"
+          className="w-full"
           onClick={handleConfirm}
           disabled={!selected}
-          className="flex h-14 w-full items-center justify-center rounded-md bg-point-500 text-base font-bold text-fg-inverse hover:bg-point-600 disabled:bg-bg-disabled disabled:text-fg-disabled"
         >
           이 위치로 선택
-        </button>
+        </Button>
       </div>
     </div>
   );
