@@ -1,4 +1,4 @@
-export type MessageKind = "text" | "image" | "system";
+export type MessageKind = "text" | "image" | "system" | "announcement";
 
 export type ChatMessage = {
   id: string;

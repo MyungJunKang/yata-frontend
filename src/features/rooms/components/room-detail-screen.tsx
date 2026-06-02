@@ -207,7 +207,7 @@ export function RoomDetailScreen({ roomId }: Props) {
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
-          <ChatView roomId={room.id} me={me} />
+          <ChatView roomId={room.id} me={me} isHost={isHost} />
         </div>
       )}
 
