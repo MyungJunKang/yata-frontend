@@ -6,6 +6,7 @@ import { ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import { Segmented } from "@/components/ui/segmented";
 import { DepartmentCombobox } from "@/features/auth/components/department-combobox";
 import { EmailSsuInput } from "@/features/auth/components/email-ssu-input";
@@ -19,6 +20,13 @@ const GENDER_OPTIONS = [
   { label: "남성", value: "male" },
   { label: "여성", value: "female" },
 ] as const;
+
+// 학번(입학 연도 끝 2자리) 선택 옵션 — 올해부터 과거 20년. 미래 연도는 선택 불가.
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from({ length: 21 }, (_, i) => {
+  const yy = String((CURRENT_YEAR - i) % 100).padStart(2, "0");
+  return { label: `${yy}학번`, value: yy };
+});
 
 export function SignupStepOneForm() {
   const router = useRouter();
@@ -81,7 +89,7 @@ export function SignupStepOneForm() {
         label="학교 이메일"
         htmlFor="email"
         error={errors.email}
-        helper="@ssu.ac.kr 학교 이메일만 사용할 수 있어요."
+        helper="@soongsil.ac.kr 학교 이메일만 사용할 수 있어요."
         required
       >
         <EmailSsuInput
@@ -153,22 +161,18 @@ export function SignupStepOneForm() {
           label="학번"
           htmlFor="studentId"
           error={errors.studentId}
-          helper="입학 연도 끝 2자리"
+          helper="입학 연도"
           required
           className="flex-1"
         >
-          <Input
+          <Combobox
             id="studentId"
-            type="text"
-            inputMode="numeric"
-            maxLength={2}
             value={draft.studentId ?? ""}
-            onChange={(e) =>
-              setField("studentId", e.target.value.replace(/\D/g, ""))
-            }
+            onChange={(v) => setField("studentId", v)}
             onBlur={blur("studentId")}
-            placeholder="22"
-            aria-invalid={!!errors.studentId}
+            options={YEAR_OPTIONS}
+            placeholder="선택"
+            invalid={!!errors.studentId}
           />
         </SignupFormField>
       </div>
