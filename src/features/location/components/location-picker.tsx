@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useSetAtom } from "jotai";
+import { useAtom } from "jotai";
 import { ChevronLeft, MapPin, Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -47,8 +47,8 @@ function getResultId(r: LocationResult): string {
 
 export function LocationPicker({ kind }: Props) {
   const router = useRouter();
-  const setFromAtom = useSetAtom(fromLocationAtom);
-  const setToAtom = useSetAtom(toLocationAtom);
+  const [fromValue, setFromAtom] = useAtom(fromLocationAtom);
+  const [toValue, setToAtom] = useAtom(toLocationAtom);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<LocationResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -138,6 +138,13 @@ export function LocationPicker({ kind }: Props) {
 
   const title = kind === "from" ? "출발지 선택" : "도착지 선택";
 
+  // 반대편(출발↔도착)에 이미 선택된 위치 — 같은 곳은 선택 불가
+  const otherLocation = kind === "from" ? toValue : fromValue;
+  const isDuplicate =
+    !!selected &&
+    !!otherLocation &&
+    getResultId(selected) === getResultId(otherLocation);
+
   const handlePickResult = (loc: LocationResult) => {
     setSelected(loc);
     setCenter({ lat: loc.lat, lng: loc.lng });
@@ -187,7 +194,7 @@ export function LocationPicker({ kind }: Props) {
   };
 
   const handleConfirm = () => {
-    if (!selected) return;
+    if (!selected || isDuplicate) return;
     if (kind === "from") setFromAtom(selected);
     else setToAtom(selected);
     pushRecentLocation(selected);
@@ -424,12 +431,20 @@ export function LocationPicker({ kind }: Props) {
             )}
           </div>
         </div>
+        {isDuplicate && (
+          <p
+            role="alert"
+            className="mb-3 rounded-lg bg-red-100 px-3 py-2 text-caption-1 font-medium text-fg-warning"
+          >
+            출발지와 도착지를 같은 곳으로 선택할 수 없어요.
+          </p>
+        )}
         <Button
           variant="point"
           size="lg"
           className="w-full"
           onClick={handleConfirm}
-          disabled={!selected}
+          disabled={!selected || isDuplicate}
         >
           이 위치로 선택
         </Button>
