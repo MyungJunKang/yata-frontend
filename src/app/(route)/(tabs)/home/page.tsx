@@ -1,5 +1,8 @@
 "use client";
 
+import { useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { useAtom } from "jotai";
 import { AlertTriangle } from "lucide-react";
 
 import { ActiveRoomBanner } from "@/features/home/components/active-room-banner";
@@ -7,16 +10,58 @@ import { EmptyRoomsCta } from "@/features/home/components/empty-rooms-cta";
 import { HomeHeader } from "@/features/home/components/home-header";
 import { RouteCard } from "@/features/home/components/route-card";
 import { SectionHeader } from "@/features/home/components/section-header";
-import { MOCK_ROUTE } from "@/features/home/lib/mock-data";
+import { useStatsSummaryQuery } from "@/features/home/api/use-home";
+import {
+  fromLocationAtom,
+  toLocationAtom,
+} from "@/features/location/store/location-atoms";
 import { useRoomsQuery } from "@/features/rooms/api/use-rooms";
+import type { GetRoomsParams } from "@/features/rooms/api/room.types";
 import { RoomCard } from "@/features/rooms/components/room-card";
 import { useActiveRoomQuery } from "@/features/user/api/use-user";
 
 export default function HomePage() {
-  const { data: rooms, isLoading, isError } = useRoomsQuery();
+  const router = useRouter();
+  const [fromLocation, setFromLocation] = useAtom(fromLocationAtom);
+  const [toLocation, setToLocation] = useAtom(toLocationAtom);
+
+  // 선택한 출발/도착 좌표로 방 목록 필터(반경 1km). 좌표가 바뀌면(선택·교환)
+  // 쿼리 키가 바뀌어 TanStack Query 가 자동 refetch 한다.
+  const roomParams = useMemo<GetRoomsParams>(
+    () => ({
+      ...(fromLocation
+        ? { startLat: fromLocation.lat, startLng: fromLocation.lng }
+        : {}),
+      ...(toLocation
+        ? { endLat: toLocation.lat, endLng: toLocation.lng }
+        : {}),
+    }),
+    [fromLocation, toLocation],
+  );
+
+  const { data: rooms, isLoading, isError } = useRoomsQuery(roomParams);
   const activeRoomQuery = useActiveRoomQuery();
+  const statsQuery = useStatsSummaryQuery();
+
   const activeRoom = activeRoomQuery.data?.room ?? null;
   const hasActiveRoom = !!activeRoom;
+
+  const matchCount = statsQuery.data?.activeMatches ?? rooms?.length;
+
+  // 출발/도착지는 기본값 없이 비워둠 — 미선택 시 placeholder 표시
+  const fromLabel = fromLocation?.name;
+  const toLabel = toLocation?.name;
+
+  const handleSwap = () => {
+    setFromLocation(toLocation);
+    setToLocation(fromLocation);
+  };
+
+  // 출발·도착지를 모두 비우면 좌표 필터가 사라져 전체 방 목록으로 refetch
+  const handleReset = () => {
+    setFromLocation(null);
+    setToLocation(null);
+  };
 
   return (
     <div className="flex w-full flex-col gap-5 px-5 pb-6">
@@ -33,10 +78,19 @@ export default function HomePage() {
         </div>
       )}
 
-      <RouteCard from={MOCK_ROUTE.from} to={MOCK_ROUTE.to} />
+      <RouteCard
+        from={fromLabel}
+        to={toLabel}
+        onSwap={handleSwap}
+        onReset={handleReset}
+        onPickFrom={() => router.push("/location-picker?kind=from")}
+        onPickTo={() => router.push("/location-picker?kind=to")}
+      />
       <SectionHeader
         title="매칭 가능한 방"
-        pillLabel={rooms ? `${rooms.length}명 매칭 중` : undefined}
+        pillLabel={
+          matchCount !== undefined ? `${matchCount}명 매칭 중` : undefined
+        }
       />
 
       {isLoading ? (
@@ -67,16 +121,17 @@ export default function HomePage() {
 
 function RoomCardSkeleton() {
   return (
-    <div className="flex flex-col gap-4 rounded-lg bg-bg-normal p-4 shadow-sm">
-      <div className="flex items-start gap-3">
-        <div className="size-12 shrink-0 rounded-md bg-bg-subtle" />
+    <div className="flex animate-pulse flex-col gap-3.5 rounded-lg bg-bg-normal p-[18px] shadow-sm">
+      <div className="flex items-center gap-4">
+        <div className="size-16 shrink-0 rounded-lg bg-bg-subtle" />
         <div className="flex flex-1 flex-col gap-2">
           <div className="h-3 w-20 rounded bg-bg-subtle" />
           <div className="h-4 w-32 rounded bg-bg-subtle" />
           <div className="h-3 w-40 rounded bg-bg-subtle" />
         </div>
       </div>
-      <div className="flex items-end justify-between border-t border-stroke-thin pt-3">
+      <div className="h-px w-full bg-stroke-thin" />
+      <div className="flex items-end justify-between">
         <div className="flex flex-col gap-1">
           <div className="h-3 w-14 rounded bg-bg-subtle" />
           <div className="h-5 w-24 rounded bg-bg-subtle" />

@@ -19,24 +19,13 @@ import {
   useLeaveRoomMutation,
 } from "@/features/rooms/api/use-room-actions";
 import { useRoomDetailQuery } from "@/features/rooms/api/use-rooms";
-import { formatDepartAt } from "@/features/rooms/lib/format";
 import { ChatView } from "@/features/messages/components/chat-view";
+import { RoomActionCard } from "@/features/rooms/components/room-action-card";
 import { RoomInfoSheet } from "@/features/rooms/components/room-info-sheet";
 import type { ActiveRoom } from "@/features/rooms/api/room.types";
 
 type Props = {
   roomId: string;
-};
-
-const CALL_STATUS: Record<
-  string,
-  { label: string; tone: "pending" | "active" | "done" }
-> = {
-  pending: { label: "호출 대기", tone: "pending" },
-  calling: { label: "호출 중", tone: "active" },
-  called: { label: "호출 완료", tone: "active" },
-  settling: { label: "정산 중", tone: "active" },
-  completed: { label: "완료", tone: "done" },
 };
 
 export function RoomDetailScreen({ roomId }: Props) {
@@ -112,10 +101,6 @@ export function RoomDetailScreen({ roomId }: Props) {
     );
   }
 
-  const status = CALL_STATUS[room.callStatus] ?? {
-    label: "—",
-    tone: "pending" as const,
-  };
   const exitError =
     exitMutation.error instanceof ApiError
       ? exitMutation.error.message
@@ -167,17 +152,17 @@ export function RoomDetailScreen({ roomId }: Props) {
         )}
       </header>
 
-      {/* Status strip */}
-      <div className="flex w-full shrink-0 items-center gap-2 border-b border-stroke-thin bg-bg-normal px-4 py-2">
-        <StatusPill label={status.label} tone={status.tone} />
-        <span className="text-caption-1 font-bold text-fg-tertiary">
-          {room.joinedCount} / {room.maxCount}명
-        </span>
-        <span className="text-caption-1 text-stroke-normal">·</span>
-        <span className="truncate text-caption-1 text-fg-tertiary">
-          {formatDepartAt(room.departAt)}
-        </span>
-      </div>
+      {/* 택시 호출 액션 카드 (멤버 전용) */}
+      {isMember && (
+        <div className="shrink-0 px-4 py-3">
+          <RoomActionCard
+            roomId={roomId}
+            callStatus={room.callStatus}
+            isHost={isHost}
+            onOpenMembers={() => setInfoOpen(true)}
+          />
+        </div>
+      )}
 
       {exitError && (
         <p
@@ -271,40 +256,6 @@ function IconButton({
     >
       {children}
     </button>
-  );
-}
-
-function StatusPill({
-  label,
-  tone,
-}: {
-  label: string;
-  tone: "pending" | "active" | "done";
-}) {
-  const palette = {
-    pending: "bg-status-pending-bg text-status-pending-strong",
-    active: "bg-point-100 text-point-700",
-    done: "bg-bg-subtle text-fg-secondary",
-  } as const;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-caption-1 font-bold",
-        palette[tone],
-      )}
-    >
-      <span
-        className={cn(
-          "size-1.5 rounded-full",
-          tone === "pending"
-            ? "bg-status-pending-strong"
-            : tone === "active"
-              ? "bg-point-500 animate-pulse"
-              : "bg-fg-tertiary",
-        )}
-      />
-      {label}
-    </span>
   );
 }
 

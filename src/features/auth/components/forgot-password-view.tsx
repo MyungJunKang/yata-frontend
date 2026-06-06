@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, CircleCheck, Lock, ShieldCheck } from "lucide-react";
+import { ArrowRight, Mail, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useRequestPasswordResetMutation } from "@/features/auth/api/use-password-reset";
 import { AuthAppBar } from "@/features/auth/components/auth-app-bar";
 import { EmailSsuInput } from "@/features/auth/components/email-ssu-input";
 import { SignupFormField } from "@/features/auth/components/signup-form-field";
@@ -13,16 +13,14 @@ import {
   validateForgotPassword,
   type ForgotPasswordDraft,
 } from "@/features/auth/lib/forgot-password-validation";
-
-type View = "form" | "success";
+import { ApiError } from "@/lib/api-client";
 
 export function ForgotPasswordView() {
-  const [view, setView] = useState<View>("form");
-  const [submitting, setSubmitting] = useState(false);
   const [draft, setDraft] = useState<ForgotPasswordDraft>({});
   const [errors, setErrors] = useState<
     ReturnType<typeof validateForgotPassword>
   >({});
+  const forgotMutation = useRequestPasswordResetMutation();
 
   const isValid = Object.keys(validateForgotPassword(draft)).length === 0;
 
@@ -36,35 +34,44 @@ export function ForgotPasswordView() {
     setErrors((prev) => ({ ...prev, [key]: errs[key] }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const errs = validateForgotPassword(draft);
     setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
-    setSubmitting(true);
-    // TODO: 비밀번호 변경 API 호출 (TanStack Query mutation)
-    await new Promise((r) => setTimeout(r, 600));
-    setSubmitting(false);
-    setView("success");
+    if (Object.keys(errs).length > 0 || !draft.email) return;
+    forgotMutation.mutate({ email: draft.email });
   };
 
-  if (view === "success") {
+  const submitError =
+    forgotMutation.error instanceof ApiError
+      ? forgotMutation.error.message
+      : forgotMutation.error
+        ? "메일 발송 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요."
+        : null;
+
+  if (forgotMutation.isSuccess) {
     return (
       <>
         <AuthAppBar backHref="/login" title="비밀번호 찾기" />
         <div className="flex flex-1 flex-col">
           <div className="flex flex-1 flex-col items-center justify-center gap-6 px-2 py-12">
             <span className="flex size-20 items-center justify-center rounded-full bg-point-100">
-              <CircleCheck className="size-10 text-fg-point" />
+              <Mail className="size-10 text-fg-point" />
             </span>
             <div className="flex flex-col items-center gap-2 text-center">
               <h2 className="text-[28px] font-extrabold leading-[1.25] tracking-[-0.02em] text-fg-primary">
-                비밀번호가
+                비밀번호 재설정
                 <br />
-                변경되었어요.
+                메일을 보냈어요.
               </h2>
               <p className="text-body-2 leading-[1.6] text-fg-secondary">
-                새 비밀번호로 다시 로그인해 주세요.
+                <span className="font-bold text-fg-primary">
+                  {draft.email}
+                </span>
+                <br />
+                메일함에서 링크를 눌러
+                <br />
+                새 비밀번호를 설정해 주세요.
               </p>
             </div>
           </div>
@@ -94,12 +101,12 @@ export function ForgotPasswordView() {
           <h2 className="text-[28px] font-extrabold leading-[1.25] tracking-[-0.02em] text-fg-primary">
             비밀번호를
             <br />
-            재설정해 주세요.
+            잊으셨나요?
           </h2>
           <p className="text-body-2 leading-[1.6] text-fg-secondary">
-            가입 시 사용한 학교 이메일과
+            가입 시 사용한 학교 이메일을 입력하면
             <br />
-            새 비밀번호를 입력해 주세요.
+            비밀번호 재설정 링크를 메일로 보내드려요.
           </p>
         </div>
 
@@ -107,7 +114,7 @@ export function ForgotPasswordView() {
           label="학교 이메일"
           htmlFor="email"
           error={errors.email}
-          helper="@ssu.ac.kr 학교 이메일만 사용할 수 있어요."
+          helper="@soongsil.ac.kr 학교 이메일만 사용할 수 있어요."
           required
         >
           <EmailSsuInput
@@ -121,58 +128,6 @@ export function ForgotPasswordView() {
           />
         </SignupFormField>
 
-        <SignupFormField
-          label="새 비밀번호"
-          htmlFor="password"
-          error={errors.password}
-          helper="8자 이상, 영문 + 숫자 조합을 권장해요."
-          required
-        >
-          <div className="relative">
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={draft.password ?? ""}
-              onChange={(e) => setField("password", e.target.value)}
-              onBlur={blur("password")}
-              autoComplete="new-password"
-              aria-invalid={!!errors.password}
-              className="pr-11"
-            />
-            <Lock
-              aria-hidden
-              className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-fg-tertiary"
-            />
-          </div>
-        </SignupFormField>
-
-        <SignupFormField
-          label="새 비밀번호 확인"
-          htmlFor="passwordConfirm"
-          error={errors.passwordConfirm}
-          helper="위에 입력한 비밀번호를 한 번 더 입력해 주세요."
-          required
-        >
-          <div className="relative">
-            <Input
-              id="passwordConfirm"
-              type="password"
-              placeholder="••••••••"
-              value={draft.passwordConfirm ?? ""}
-              onChange={(e) => setField("passwordConfirm", e.target.value)}
-              onBlur={blur("passwordConfirm")}
-              autoComplete="new-password"
-              aria-invalid={!!errors.passwordConfirm}
-              className="pr-11"
-            />
-            <Lock
-              aria-hidden
-              className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-fg-tertiary"
-            />
-          </div>
-        </SignupFormField>
-
         <div className="flex items-start gap-3 rounded-md bg-bg-subtle p-4">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-point-100">
             <ShieldCheck className="size-5 text-fg-point" />
@@ -180,19 +135,28 @@ export function ForgotPasswordView() {
           <div className="flex flex-col gap-1">
             <p className="text-strong-2 text-fg-primary">안전한 재설정</p>
             <p className="text-caption-1 leading-[1.5] text-fg-secondary">
-              변경 후에는 새 비밀번호로 로그인해 주세요. 비밀번호는 본인만
-              알 수 있도록 안전하게 보관해 주세요.
+              본인 확인을 위해 메일로 재설정 링크를 보내드려요. 메일이 보이지
+              않으면 스팸함도 확인해 주세요.
             </p>
           </div>
         </div>
 
+        {submitError && (
+          <p
+            role="alert"
+            className="rounded-sm bg-red-100 px-3 py-2 text-[12px] font-medium text-fg-warning"
+          >
+            {submitError}
+          </p>
+        )}
+
         <Button
           type="submit"
-          disabled={!isValid || submitting}
+          disabled={!isValid || forgotMutation.isPending}
           className="mt-2 h-14 w-full rounded-md bg-point-500 text-base font-bold text-fg-inverse hover:bg-point-600 disabled:bg-bg-disabled disabled:text-fg-disabled disabled:opacity-100"
         >
-          {submitting ? "변경 중…" : "비밀번호 변경"}
-          {!submitting && <ArrowRight />}
+          {forgotMutation.isPending ? "메일 보내는 중…" : "재설정 메일 받기"}
+          {!forgotMutation.isPending && <ArrowRight />}
         </Button>
       </form>
     </>

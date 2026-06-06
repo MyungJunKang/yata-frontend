@@ -1,8 +1,17 @@
-import { UserGender } from "@/features/user/api/user.types";
+/** 방 성별 정책 (서버 enum) — 상관없음 / 동성만 / 친구만 */
+export type GenderPolicy = "all" | "same" | "friends";
 
 export type GetRoomsParams = {
-  from?: number;
-  to?: number;
+  /** 출발지 텍스트 검색 (정규식) */
+  from?: string;
+  /** 도착지 텍스트 검색 (정규식) */
+  to?: string;
+  /** 출발지 좌표 — 입력 시 반경 1km 필터 (startLng과 함께) */
+  startLat?: number;
+  startLng?: number;
+  /** 도착지 좌표 — 입력 시 반경 1km 필터 (endLng과 함께) */
+  endLat?: number;
+  endLng?: number;
   limit?: number;
 };
 
@@ -17,7 +26,7 @@ export type CreateRoomBody = {
   endLng: number;
   departAt: string;
   capacity: number;
-  genderPolicy: UserGender | "all";
+  genderPolicy: GenderPolicy;
   message: string;
   totalFare: number;
 };
@@ -66,11 +75,21 @@ export type ActiveRoom = {
   maxCount: number;
   members: ActiveRoomMember[];
   callStatus: RoomCallStatus;
-  genderPolicy: UserGender | "all";
+  genderPolicy: GenderPolicy;
   expiresAt: string | null;
   archivedAt: string | null;
 };
 
 export type GetActiveRoomResponse = {
   room: ActiveRoom | null;
+};
+
+export type ShareLocationBody = {
+  lat: number;
+  lng: number;
+  accuracy?: number;
+};
+
+export type CallStatusResponse = {
+  callStatus: RoomCallStatus;
 };

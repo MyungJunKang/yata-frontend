@@ -14,6 +14,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
+import { AlertDialog } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useCreateRoomMutation } from "@/features/rooms/api/use-create-room";
 import type { CreateRoomBody } from "@/features/rooms/api/room.types";
@@ -53,6 +54,19 @@ function toHHMMValue(d: Date): string {
   return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
 
+/** ApiError body 에서 서버 에러 코드 추출 (예: ALREADY_IN_ROOM) */
+function getApiErrorCode(err: unknown): string | undefined {
+  if (
+    err instanceof ApiError &&
+    err.body &&
+    typeof err.body === "object" &&
+    "code" in err.body
+  ) {
+    return String((err.body as { code: unknown }).code);
+  }
+  return undefined;
+}
+
 export function CreateRoomForm() {
   const router = useRouter();
   const [from, setFrom] = useAtom(fromLocationAtom);
@@ -64,6 +78,7 @@ export function CreateRoomForm() {
   const [genderChoice, setGenderChoice] = useState<GenderPolicyChoice>("all");
   const [message, setMessage] = useState("");
   const [timeSheetOpen, setTimeSheetOpen] = useState(false);
+  const [alreadyInRoomOpen, setAlreadyInRoomOpen] = useState(false);
   const mutation = useCreateRoomMutation();
 
   const fareBody: FareEstimateRequest | null = useMemo(() => {
@@ -116,16 +131,26 @@ export function CreateRoomForm() {
       endLng: to.lng,
       departAt: departTime.toISOString(),
       capacity,
-      // TODO: "동성만" 선택 시 본인 성별을 /me 등으로 받아와 male|female 로 보내야 함
-      genderPolicy: genderChoice === "all" ? "all" : "male",
+      // genderChoice 는 "all" | "same" — 서버 genderPolicy enum 값과 동일
+      genderPolicy: genderChoice,
       message,
       totalFare,
     };
-    mutation.mutate(body);
+    mutation.mutate(body, {
+      onError: (err) => {
+        // 이미 참여 중인 방이 있으면 인라인 에러 대신 안내 다이얼로그
+        if (getApiErrorCode(err) === "ALREADY_IN_ROOM") {
+          setAlreadyInRoomOpen(true);
+        }
+      },
+    });
   };
 
-  const submitError =
-    mutation.error instanceof ApiError
+  const isAlreadyInRoom =
+    getApiErrorCode(mutation.error) === "ALREADY_IN_ROOM";
+  const submitError = isAlreadyInRoom
+    ? null
+    : mutation.error instanceof ApiError
       ? mutation.error.message
       : mutation.error
         ? "방 만들기에 실패했어요. 잠시 후 다시 시도해 주세요."
@@ -261,6 +286,21 @@ export function CreateRoomForm() {
         initial={departTime}
         onClose={() => setTimeSheetOpen(false)}
         onConfirm={setDepartTime}
+      />
+
+      <AlertDialog
+        open={alreadyInRoomOpen}
+        title="이미 참여 중인 방이 있어요"
+        description={
+          mutation.error instanceof ApiError
+            ? mutation.error.message
+            : "기존 매칭이 끝나야 참여 가능합니다."
+        }
+        confirmLabel="내 방으로 가기"
+        onClose={() => {
+          setAlreadyInRoomOpen(false);
+          router.replace("/home");
+        }}
       />
 
       {/* 하단 sticky bar */}

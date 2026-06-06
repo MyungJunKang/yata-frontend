@@ -21,3 +21,12 @@ export type SignUpBody = {
 };
 
 export type SignUpResponse = SignInResponse;
+
+export type RequestPasswordResetBody = {
+  email: string;
+};
+
+export type ResetPasswordBody = {
+  token: string;
+  newPassword: string; // 8자 이상
+};
