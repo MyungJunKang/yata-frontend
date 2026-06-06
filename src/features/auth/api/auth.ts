@@ -1,5 +1,7 @@
 import { api } from "@/lib/api-client";
 import type {
+  RequestPasswordResetBody,
+  ResetPasswordBody,
   SignInBody,
   SignInResponse,
   SignUpBody,
@@ -13,3 +15,9 @@ export const signOut = () => api.post<{ ok: true }>("/api/auth/logout");
 
 export const signUp = (body: SignUpBody) =>
   api.post<SignUpResponse>("/api/auth/signup", { json: body });
+
+export const requestPasswordReset = (body: RequestPasswordResetBody) =>
+  api.post<{ ok: true }>("/api/auth/password/forgot", { json: body });
+
+export const resetPassword = (body: ResetPasswordBody) =>
+  api.post<{ ok: true }>("/api/auth/password/reset", { json: body });

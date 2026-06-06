@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowRight, Lock, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { useSignUp } from "@/features/auth/api/use-sign-up";
+import { useUpdatePaymentAccountMutation } from "@/features/user/api/use-user";
 import { SignupFormField } from "@/features/auth/components/signup-form-field";
 import { SignupProgress } from "@/features/auth/components/signup-progress";
 import { useSignup } from "@/features/auth/components/signup-context";
@@ -29,32 +31,78 @@ const BANKS = [
   "씨티은행",
 ] as const;
 
+const BANK_OPTIONS = BANKS.map((b) => ({ label: b, value: b }));
+
 export function SignupStepThreeForm() {
+  const router = useRouter();
   const { draft, setField, reset } = useSignup();
   const [errors, setErrors] = useState<ReturnType<typeof validateStepThree>>(
     {},
   );
-  const signUpMutation = useSignUp({ onSettled: () => reset() });
+  const [isCompleting, setIsCompleting] = useState(false);
+  const signUpMutation = useSignUp();
+  const updatePaymentAccountMutation = useUpdatePaymentAccountMutation();
+
+  const isPending = isCompleting || signUpMutation.isPending;
 
   const isValid = Object.keys(validateStepThree(draft)).length === 0;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs = validateStepThree(draft);
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
-    // TODO: 은행 계좌(bank/accountNumber/accountHolder)는 별도 /accounts 엔드포인트 연동 시 전송
+    // 이전 단계 입력이 유실됐으면(직접 진입/세션 초기화 등) 1단계부터 다시
+    if (
+      !draft.name ||
+      !draft.email ||
+      !draft.phone ||
+      !draft.gender ||
+      !draft.department ||
+      !draft.studentId ||
+      !draft.password
+    ) {
+      router.replace("/signup");
+      return;
+    }
+
     const body: SignUpBody = {
-      name: draft.name!,
-      email: draft.email!,
-      phone: draft.phone!,
-      gender: draft.gender!,
-      dept: draft.department!,
-      year: draft.studentId!,
-      password: draft.password!,
+      name: draft.name,
+      email: draft.email,
+      phone: draft.phone,
+      gender: draft.gender,
+      dept: draft.department,
+      year: draft.studentId,
+      password: draft.password,
     };
-    signUpMutation.mutate(body);
+
+    setIsCompleting(true);
+    try {
+      await signUpMutation.mutateAsync(body);
+    } catch {
+      // 회원가입 실패 시 draft 를 유지해 입력값 그대로 다시 시도할 수 있게 한다
+      // (여기서 reset 하면 재시도 시 빈 payload 가 전송됨)
+      setIsCompleting(false);
+      return;
+    }
+
+    // 회원가입 성공 후 httpOnly 쿠키로 인증되므로 계좌 등록을 이어서 진행
+    try {
+      await updatePaymentAccountMutation.mutateAsync({
+        bank: draft.bank!,
+        accountNumber: draft.accountNumber!,
+        accountHolder: draft.accountHolder!,
+      });
+    } catch (err) {
+      // 이미 가입은 완료된 상태이므로 계좌 등록 실패는 차단하지 않고
+      // 마이페이지에서 다시 등록할 수 있도록 안내한다.
+      console.error("payment account registration failed after signup", err);
+    }
+
+    reset();
+    router.replace("/home");
+    router.refresh();
   };
 
   const submitError =
@@ -97,22 +145,17 @@ export function SignupStepThreeForm() {
         helper="정산받을 은행을 선택해 주세요."
         required
       >
-        <Select
+        <Combobox
           id="bank"
           value={draft.bank ?? ""}
-          onChange={(e) => setField("bank", e.target.value)}
+          onChange={(v) => setField("bank", v)}
           onBlur={blur("bank")}
-          aria-invalid={!!errors.bank}
-        >
-          <option value="" disabled>
-            은행 선택
-          </option>
-          {BANKS.map((b) => (
-            <option key={b} value={b}>
-              {b}
-            </option>
-          ))}
-        </Select>
+          options={BANK_OPTIONS}
+          placeholder="은행 선택"
+          invalid={!!errors.bank}
+          searchable
+          searchPlaceholder="은행 검색"
+        />
       </SignupFormField>
 
       <SignupFormField
@@ -186,11 +229,11 @@ export function SignupStepThreeForm() {
 
       <Button
         type="submit"
-        disabled={!isValid || signUpMutation.isPending}
+        disabled={!isValid || isPending}
         className="mt-2 h-14 w-full rounded-md bg-point-500 text-base font-bold text-fg-inverse hover:bg-point-600 disabled:bg-bg-disabled disabled:text-fg-disabled disabled:opacity-100"
       >
-        {signUpMutation.isPending ? "가입 중…" : "회원가입 완료"}
-        {!signUpMutation.isPending && <ArrowRight />}
+        {isPending ? "가입 중…" : "회원가입 완료"}
+        {!isPending && <ArrowRight />}
       </Button>
     </form>
   );

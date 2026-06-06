@@ -44,7 +44,7 @@ export const EmailSsuInput = React.forwardRef<HTMLInputElement, Props>(
           aria-hidden
           className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-body-1 text-fg-tertiary"
         >
-          @ssu.ac.kr
+          @soongsil.ac.kr
         </span>
       </div>
     );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   ChevronRight,
   FileText,
@@ -20,16 +21,17 @@ type RowProps = {
 };
 
 export function AccountSettings() {
+  const router = useRouter();
   const signOut = useSignOut();
 
   const handleEditProfile = () => {
-    // TODO: /mypage/profile-edit 라우트 구현 후 router.push
+    router.push("/profile-edit");
   };
   const handleTerms = () => {
-    // TODO: 이용 약관 페이지 구현 후 라우팅
+    router.push("/terms");
   };
   const handleWithdraw = () => {
-    // TODO: 탈퇴 confirm 다이얼로그 → DELETE /api/me
+    router.push("/withdraw");
   };
 
   return (

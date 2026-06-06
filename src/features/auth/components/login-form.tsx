@@ -13,8 +13,8 @@ import { ApiError } from "@/lib/api-client";
 
 function validateEmail(value: string): string {
   if (!value) return "이메일을 입력해 주세요.";
-  if (!/^[^\s@]+@ssu\.ac\.kr$/.test(value))
-    return "@ssu.ac.kr 이메일만 사용할 수 있어요.";
+  if (!/^[^\s@]+@soongsil\.ac\.kr$/.test(value))
+    return "@soongsil.ac.kr 이메일만 사용할 수 있어요.";
   return "";
 }
 
@@ -85,7 +85,7 @@ export function LoginForm() {
           </label>
           <EmailSsuInput
             id="email"
-            placeholder="student_id"
+            placeholder="ID"
             value={email}
             onChange={(v) => {
               setEmail(v);

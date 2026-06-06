@@ -2,7 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { AUTH_COOKIE_NAME } from "@/lib/auth-cookie";
 
-const AUTH_PUBLIC_PATHS = ["/login", "/signup", "/forgot-password"];
+const AUTH_PUBLIC_PATHS = [
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+];
 
 function isAuthPublicPath(pathname: string): boolean {
   return AUTH_PUBLIC_PATHS.some(

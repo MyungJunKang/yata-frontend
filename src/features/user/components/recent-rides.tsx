@@ -1,12 +1,13 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import {
-  MOCK_RECENT_RIDES,
-  type RecentRide,
-} from "@/features/user/lib/mock-rides";
+import { useRideHistoryQuery } from "@/features/user/api/use-user";
+import type { RideHistoryItem } from "@/features/user/api/user.types";
 
-function formatRideTime(iso: string): string {
+const RECENT_LIMIT = 5;
+
+function formatRideTime(iso: string | null): string {
+  if (!iso) return "출발 시간 미정";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   const yyyy = d.getFullYear();
@@ -18,8 +19,10 @@ function formatRideTime(iso: string): string {
 }
 
 export function RecentRides() {
-  // TODO: 백엔드 ride-history 엔드포인트 합의 후 useRecentRidesQuery 로 교체
-  const rides = MOCK_RECENT_RIDES;
+  const { data, isLoading, isError } = useRideHistoryQuery({
+    limit: RECENT_LIMIT,
+  });
+  const rides = data ?? [];
 
   return (
     <section className="flex w-full flex-col gap-3">
@@ -35,15 +38,42 @@ export function RecentRides() {
         </button>
       </div>
       <div className="flex flex-col gap-3">
-        {rides.map((ride) => (
-          <RideCard key={ride.id} ride={ride} />
-        ))}
+        {isLoading ? (
+          <RideListSkeleton />
+        ) : isError ? (
+          <RideListMessage text="이용 기록을 불러오지 못했어요." />
+        ) : rides.length === 0 ? (
+          <RideListMessage text="아직 이용 기록이 없어요." />
+        ) : (
+          rides.map((ride) => <RideCard key={ride.id} ride={ride} />)
+        )}
       </div>
     </section>
   );
 }
 
-function RideCard({ ride }: { ride: RecentRide }) {
+function RideListMessage({ text }: { text: string }) {
+  return (
+    <div className="flex w-full items-center justify-center rounded-3xl bg-bg-normal px-5 py-10 text-[13px] text-fg-tertiary shadow-sm">
+      {text}
+    </div>
+  );
+}
+
+function RideListSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 2 }).map((_, i) => (
+        <div
+          key={i}
+          className="h-[148px] w-full animate-pulse rounded-3xl bg-bg-normal shadow-sm"
+        />
+      ))}
+    </>
+  );
+}
+
+function RideCard({ ride }: { ride: RideHistoryItem }) {
   const isCompleted = ride.status === "completed";
   return (
     <div className="flex w-full flex-col gap-3.5 rounded-3xl bg-bg-normal p-5 shadow-sm">
@@ -73,22 +103,20 @@ function RideCard({ ride }: { ride: RecentRide }) {
             </p>
           </div>
         </div>
-        {isCompleted && (
-          <span className="shrink-0 text-[10px] font-bold tracking-wider text-fg-tertiary">
-            이용 완료
-          </span>
-        )}
+        <span className="shrink-0 text-[10px] font-bold tracking-wider text-fg-tertiary">
+          {isCompleted ? "이용 완료" : "취소됨"}
+        </span>
       </div>
       <div className="h-px w-full bg-stroke-thin" />
       <div className="flex w-full items-end justify-between">
         <p className="text-[12px] text-fg-tertiary tabular">
-          {formatRideTime(ride.departAt)}
+          {formatRideTime(ride.departedAt)}
         </p>
         <div className="flex flex-col items-end gap-0.5 leading-tight">
           <p className="text-[11px] font-bold text-fg-tertiary">본인 부담</p>
           <div className={cn("flex items-baseline gap-0.5 text-fg-primary tabular")}>
             <span className="text-[22px] font-bold leading-none">
-              {ride.personalFare.toLocaleString()}
+              {(ride.myFareWon ?? 0).toLocaleString()}
             </span>
             <span className="text-[14px] font-bold">원</span>
           </div>

@@ -1,4 +1,4 @@
-export const SSU_EMAIL_DOMAIN = "@ssu.ac.kr";
+export const SSU_EMAIL_DOMAIN = "@soongsil.ac.kr";
 
 export function getEmailLocalPart(email: string | undefined): string {
   if (!email) return "";

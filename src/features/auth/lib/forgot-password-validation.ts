@@ -1,18 +1,26 @@
 export type ForgotPasswordDraft = {
   email?: string;
+};
+
+type ForgotErrors = Partial<Record<"email", string>>;
+
+export function validateForgotPassword(d: ForgotPasswordDraft): ForgotErrors {
+  const e: ForgotErrors = {};
+  if (!d.email) e.email = "이메일을 입력해 주세요.";
+  else if (!/^[^\s@]+@soongsil\.ac\.kr$/.test(d.email))
+    e.email = "@soongsil.ac.kr 이메일만 사용할 수 있어요.";
+  return e;
+}
+
+export type ResetPasswordDraft = {
   password?: string;
   passwordConfirm?: string;
 };
 
-type Errors = Partial<
-  Record<"email" | "password" | "passwordConfirm", string>
->;
+type ResetErrors = Partial<Record<"password" | "passwordConfirm", string>>;
 
-export function validateForgotPassword(d: ForgotPasswordDraft): Errors {
-  const e: Errors = {};
-  if (!d.email) e.email = "이메일을 입력해 주세요.";
-  else if (!/^[^\s@]+@ssu\.ac\.kr$/.test(d.email))
-    e.email = "@ssu.ac.kr 이메일만 사용할 수 있어요.";
+export function validateResetPassword(d: ResetPasswordDraft): ResetErrors {
+  const e: ResetErrors = {};
   if (!d.password) e.password = "비밀번호를 입력해 주세요.";
   else if (d.password.length < 8)
     e.password = "비밀번호는 8자 이상이어야 해요.";

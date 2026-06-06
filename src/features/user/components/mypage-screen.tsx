@@ -16,7 +16,7 @@ export function MyPageScreen() {
 
   return (
     <div className="flex w-full flex-col">
-      <header className="flex h-14 w-full items-center justify-end px-5">
+      <header className="flex h-14 w-full items-center justify-end border-b border-stroke-thin bg-bg-normal px-5">
         <YataLogo />
       </header>
       <div className="flex w-full flex-col gap-[22px] px-5 pb-2 pt-4">
