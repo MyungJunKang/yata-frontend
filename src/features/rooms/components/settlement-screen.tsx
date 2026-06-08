@@ -2,14 +2,26 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronLeft, ImagePlus, X } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import {
+  AlertCircle,
+  Check,
+  ChevronLeft,
+  ImagePlus,
+  Loader2,
+  X,
+} from "lucide-react";
 
 import { ApiError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { YataLogo } from "@/components/ui/yata-logo";
-import { useActiveRoomQuery, useUserQuery } from "@/features/user/api/use-user";
+import {
+  useActiveRoomQuery,
+  usePaymentAccountQuery,
+  useUserQuery,
+} from "@/features/user/api/use-user";
 import {
   useConfirmSettlementPaymentMutation,
   useCreateSettlementMutation,
@@ -22,10 +34,15 @@ import type {
   Settlement,
   SettlementMember,
 } from "@/features/rooms/api/settlement.types";
+import { uploadImage } from "@/features/upload/api/upload";
 
 type Props = {
   roomId: string;
 };
+
+// 백엔드 /uploads/image 가 허용하는 이미지 타입·크기 — 클라이언트에서 미리 가드.
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export function SettlementScreen({ roomId }: Props) {
   const router = useRouter();
@@ -33,6 +50,9 @@ export function SettlementScreen({ roomId }: Props) {
   const activeRoomQuery = useActiveRoomQuery();
   const settlementQuery = useSettlementQuery(roomId);
   const createMutation = useCreateSettlementMutation(roomId);
+  // 호스트 본인의 등록 계좌 — 정산 공지에 입금 계좌로 첨부.
+  const accountQuery = usePaymentAccountQuery();
+  const myAccount = accountQuery.data;
 
   const room = activeRoomQuery.data?.room ?? null;
   const me = userQuery.data;
@@ -42,8 +62,20 @@ export function SettlementScreen({ roomId }: Props) {
   const capacity = room?.joinedCount ?? 0;
 
   const [fareInput, setFareInput] = useState("");
+  // 로컬 미리보기용 File — 업로드가 끝나기 전에도 즉시 보여주기 위함.
   const [imageFile, setImageFile] = useState<File | null>(null);
+  // 업로드 성공 후 받은 영구 URL — 정산 게시 시 imageUrl 로 전송.
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+  // 파일 선택 시점 타입/크기 검증 실패 메시지 — 네트워크 업로드 에러와 별개.
+  const [pickError, setPickError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // /api/upload/images 호출 — 파일 선택 즉시 업로드해 URL 을 확보.
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => uploadImage(file),
+    onSuccess: (result) => setUploadedImageUrl(result.url),
+  });
+
   const totalFare = useMemo(() => {
     const n = Number(fareInput.replace(/[^0-9]/g, ""));
     return Number.isFinite(n) ? n : 0;
@@ -57,6 +89,12 @@ export function SettlementScreen({ roomId }: Props) {
     [imageFile],
   );
 
+  const uploadError =
+    uploadMutation.error instanceof ApiError
+      ? uploadMutation.error.message
+      : uploadMutation.error
+        ? "이미지 업로드에 실패했어요. 다시 시도해 주세요."
+        : null;
   const submitError =
     createMutation.error instanceof ApiError
       ? createMutation.error.message
@@ -93,22 +131,75 @@ export function SettlementScreen({ roomId }: Props) {
 
   const handleSubmit = () => {
     if (!totalFare || capacity <= 0 || createMutation.isPending) return;
+    // 업로드가 아직 끝나지 않았으면 막음 — 업로드 중 버튼은 disabled 로 표시.
+    if (uploadMutation.isPending) return;
+    // 등록 계좌가 있으면 payout JSON 으로 첨부 — 멤버가 채팅 공지에서 보고 송금할 수 있게.
+    // settlement PaymentAccount 는 `holder` 필드, user PaymentAccount 는 `accountHolder` 라 매핑 필요.
+    const payout = myAccount
+      ? JSON.stringify({
+          bank: myAccount.bank,
+          accountNumber: myAccount.accountNumber,
+          holder: myAccount.accountHolder,
+        })
+      : undefined;
     createMutation.mutate(
       {
         totalFare,
         perPersonAmount: perPersonFare,
         membersCount: capacity,
+        // swagger 스펙대로 image 는 multipart 바이너리로 함께 전송.
+        // 별도 /uploads/image 선제 호출은 image 가 선택된 시점에 이미 이뤄짐.
         image: imageFile ?? undefined,
+        payout,
       },
       {
         onSuccess: () => router.push(`/room/${roomId}`),
+        // 정산이 이미 존재하면 백엔드가 에러로 응답할 수 있음.
+        // 그 경우 현재 화면에서 settlement 를 다시 가져와 기존 정산 뷰로 전환한다 (멤버가 먼저 송금 표시한 경우 등).
+        onError: () => {
+          settlementQuery.refetch();
+        },
       },
     );
   };
 
   const handleImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
+    // 새로 고르면 이전 상태 정리.
+    setUploadedImageUrl(null);
+    setPickError(null);
+    uploadMutation.reset();
+    if (!file) {
+      setImageFile(null);
+      return;
+    }
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type as (typeof ALLOWED_IMAGE_TYPES)[number])) {
+      setPickError("JPEG · PNG · WebP 이미지만 업로드할 수 있어요.");
+      setImageFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setPickError("이미지는 최대 10MB까지 업로드할 수 있어요.");
+      setImageFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
     setImageFile(file);
+    uploadMutation.mutate(file);
+  };
+
+  const handleImageRemove = () => {
+    setImageFile(null);
+    setUploadedImageUrl(null);
+    setPickError(null);
+    uploadMutation.reset();
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleImageRetry = () => {
+    if (!imageFile || uploadMutation.isPending) return;
+    uploadMutation.mutate(imageFile);
   };
 
   return (
@@ -149,10 +240,7 @@ export function SettlementScreen({ roomId }: Props) {
             {imageFile && (
               <button
                 type="button"
-                onClick={() => {
-                  setImageFile(null);
-                  if (fileInputRef.current) fileInputRef.current.value = "";
-                }}
+                onClick={handleImageRemove}
                 className="inline-flex items-center gap-1 rounded-full bg-bg-subtle px-2.5 py-1 text-caption-1 font-bold text-fg-tertiary hover:text-fg-warning"
               >
                 <X className="size-3" /> 삭제
@@ -162,27 +250,66 @@ export function SettlementScreen({ roomId }: Props) {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             onChange={handleImagePick}
             className="hidden"
             aria-label="영수증 이미지 선택"
           />
           {imagePreviewUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={imagePreviewUrl}
-              alt="영수증 미리보기"
-              className="max-h-[200px] w-full rounded-xl object-cover"
-            />
+            <div className="relative overflow-hidden rounded-xl">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imagePreviewUrl}
+                alt="영수증 미리보기"
+                className="max-h-[200px] w-full object-cover"
+              />
+              {/* 업로드 중 — 반투명 오버레이 + 스피너 */}
+              {uploadMutation.isPending && (
+                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 text-fg-inverse">
+                  <Loader2 className="size-4 animate-spin" />
+                  <span className="text-caption-1 font-bold">업로드 중…</span>
+                </div>
+              )}
+              {/* 업로드 성공 — 우상단 체크 배지 */}
+              {uploadedImageUrl && !uploadMutation.isPending && (
+                <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-status-success-strong/90 px-2 py-0.5 text-caption-1 font-bold text-fg-inverse">
+                  <Check className="size-3" /> 업로드 완료
+                </span>
+              )}
+            </div>
           ) : (
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="tap-spring flex h-24 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-stroke-normal bg-bg-subtle text-fg-tertiary hover:border-stroke-point hover:text-fg-point"
+              className="tap-spring flex h-24 w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-stroke-normal bg-bg-subtle text-fg-tertiary hover:border-stroke-point hover:text-fg-point"
             >
-              <ImagePlus className="size-5" />
-              <span className="text-body-2 font-bold">이미지 첨부하기</span>
+              <div className="flex items-center gap-2">
+                <ImagePlus className="size-5" />
+                <span className="text-body-2 font-bold">이미지 첨부하기</span>
+              </div>
+              <span className="text-caption-2 font-medium text-fg-tertiary">
+                JPEG · PNG · WebP · 최대 10MB
+              </span>
             </button>
+          )}
+          {/* 픽 검증 실패 또는 네트워크 업로드 실패 — 인라인 메시지. 네트워크 실패만 "다시 시도" 노출. */}
+          {(pickError || uploadError) && (
+            <div
+              role="alert"
+              className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-caption-1 font-medium text-fg-warning"
+            >
+              <AlertCircle className="size-4 shrink-0" />
+              <span className="flex-1">{pickError ?? uploadError}</span>
+              {!pickError && uploadError && (
+                <button
+                  type="button"
+                  onClick={handleImageRetry}
+                  className="shrink-0 rounded-full bg-bg-normal px-2.5 py-1 font-bold text-fg-warning hover:bg-red-100"
+                >
+                  다시 시도
+                </button>
+              )}
+            </div>
           )}
         </section>
 
@@ -193,18 +320,33 @@ export function SettlementScreen({ roomId }: Props) {
             </p>
             <button
               type="button"
-              onClick={() => router.push("/mypage")}
+              onClick={() => router.push("/profile-edit")}
               className="text-caption-1 font-bold text-fg-point"
             >
               프로필에서 변경 ›
             </button>
           </header>
-          <p className="text-[17px] font-bold text-fg-primary">
-            계좌 미등록
-          </p>
-          <p className="text-[15px] tracking-wide text-fg-tertiary">
-            프로필 → 개인정보 수정에서 추가해 주세요.
-          </p>
+          {myAccount ? (
+            <>
+              <p className="text-[17px] font-bold text-fg-primary">
+                {myAccount.bank} · {myAccount.accountHolder}
+              </p>
+              <p className="text-[15px] tabular tracking-wide text-fg-secondary">
+                {myAccount.accountNumber}
+              </p>
+            </>
+          ) : accountQuery.isLoading ? (
+            <p className="text-[15px] text-fg-tertiary">계좌 정보 불러오는 중…</p>
+          ) : (
+            <>
+              <p className="text-[17px] font-bold text-fg-primary">
+                계좌 미등록
+              </p>
+              <p className="text-[15px] tracking-wide text-fg-tertiary">
+                프로필 → 개인정보 수정에서 추가해 주세요.
+              </p>
+            </>
+          )}
         </section>
 
         <p className="text-caption-1 font-bold text-fg-secondary">
@@ -239,10 +381,23 @@ export function SettlementScreen({ roomId }: Props) {
             <p className="text-[11px] font-bold uppercase tracking-wider text-point-600">
               입금 계좌
             </p>
-            <p className="text-body-2 font-bold text-fg-primary">
-              {me?.name ?? "—"}
-            </p>
-            <p className="text-body-2 text-fg-tertiary">계좌 미등록</p>
+            {myAccount ? (
+              <>
+                <p className="text-body-2 font-bold text-fg-primary">
+                  {myAccount.bank} · {myAccount.accountHolder}
+                </p>
+                <p className="text-body-2 tabular tracking-wide text-fg-secondary">
+                  {myAccount.accountNumber}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-body-2 font-bold text-fg-primary">
+                  {me?.name ?? "—"}
+                </p>
+                <p className="text-body-2 text-fg-tertiary">계좌 미등록</p>
+              </>
+            )}
           </div>
         </section>
 
@@ -269,13 +424,20 @@ export function SettlementScreen({ roomId }: Props) {
           size="lg"
           className="w-full"
           onClick={handleSubmit}
-          disabled={!totalFare || createMutation.isPending || !isHost}
+          disabled={
+            !totalFare ||
+            createMutation.isPending ||
+            uploadMutation.isPending ||
+            !isHost
+          }
         >
           {createMutation.isPending
             ? "공지 게시 중…"
-            : isHost
-              ? "채팅방에 공지 게시"
-              : "호스트만 정산을 시작할 수 있어요"}
+            : uploadMutation.isPending
+              ? "이미지 업로드 중…"
+              : isHost
+                ? "채팅방에 공지 게시"
+                : "호스트만 정산을 시작할 수 있어요"}
         </Button>
       </div>
     </div>
@@ -381,6 +543,10 @@ function SettlementView({
   const members = settlement.members ?? [];
   const account = parsePayout(settlement.payout);
   const confirmedCount = members.filter((m) => m.status === "confirmed").length;
+  // 송금 완료(paid 또는 confirmed) — 호스트가 수령 확인을 누르기 전에도 카운터가 즉시 올라감.
+  const paidCount = members.filter(
+    (m) => m.status === "paid" || m.status === "confirmed",
+  ).length;
   const receivedTotal = confirmedCount * perPerson;
   const allConfirmed =
     members.length > 0 && confirmedCount === members.length;
@@ -504,6 +670,9 @@ function SettlementView({
             <p className="text-caption-1 font-bold text-fg-tertiary">진행률</p>
             <p className="text-[20px] font-bold text-fg-primary tabular">
               {confirmedCount} / {members.length}명
+            </p>
+            <p className="text-caption-1 font-bold text-fg-secondary tabular">
+              송금 완료 {paidCount} / {members.length}
             </p>
           </div>
           <div className="flex flex-col gap-1 rounded-2xl bg-bg-normal p-[18px] shadow-sm">
@@ -637,7 +806,8 @@ function MemberRow({
   onConfirmClick: () => void;
   disabled?: boolean;
 }) {
-  const meta = STATUS_META[member.status];
+  // 백엔드가 enum 외 값(예: 대소문자 다른 변형) 을 줄 수 있어 안전 fallback.
+  const meta = STATUS_META[member.status] ?? STATUS_META.unpaid;
   const time =
     member.status === "confirmed"
       ? formatStatusTime(member.confirmedAt)

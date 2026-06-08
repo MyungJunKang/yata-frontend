@@ -1,6 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import {
   changePassword,
@@ -35,6 +40,15 @@ export function useActiveRoomQuery() {
   return useQuery({
     queryKey: userKeys.activeRoom(),
     queryFn: getActiveRoom,
+    // 다른 멤버의 액션(호스트의 택시 호출/방 종료 등)을 빠르게 반영하기 위한 폴링.
+    // 활성 방이 사라지면(=종료) 폴링을 중단한다.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data || !data.room) return false;
+      return 5_000;
+    },
+    refetchOnWindowFocus: true,
+    refetchIntervalInBackground: true,
   });
 }
 
@@ -42,6 +56,23 @@ export function useRideHistoryQuery(params: GetRideHistoryParams = {}) {
   return useQuery({
     queryKey: userKeys.rideHistory(params),
     queryFn: () => getRideHistory(params),
+  });
+}
+
+/**
+ * 전체보기용 cursor 기반 무한스크롤.
+ * 응답이 단순 배열이라 hasMore 메타가 없으므로 page.length < limit 면 끝으로 간주.
+ */
+export function useRideHistoryInfiniteQuery(limit = 20) {
+  return useInfiniteQuery({
+    queryKey: userKeys.rideHistoryInfinite(limit),
+    queryFn: ({ pageParam }) =>
+      getRideHistory({ limit, cursor: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.length < limit
+        ? undefined
+        : lastPage[lastPage.length - 1].id,
   });
 }
 

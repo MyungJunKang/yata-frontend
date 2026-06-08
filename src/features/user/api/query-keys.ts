@@ -7,5 +7,8 @@ export const userKeys = {
   activeRoom: () => [...userKeys.all, "active-room"] as const,
   rideHistory: (params: GetRideHistoryParams) =>
     [...userKeys.all, "ride-history", params] as const,
+  /** 전체보기 무한스크롤 — 단일 페이지 캐시(rideHistory) 와 분리. */
+  rideHistoryInfinite: (limit: number) =>
+    [...userKeys.all, "ride-history", "infinite", limit] as const,
   paymentAccount: () => [...userKeys.all, "payment-account"] as const,
 };

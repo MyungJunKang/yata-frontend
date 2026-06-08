@@ -6,12 +6,21 @@ import { House, Plus, User, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+/** BottomNav 가 표시될 경로. 이 외 경로에서는 자체적으로 숨겨진다. */
+const VISIBLE_PATHS = new Set<string>(["/home", "/mypage"]);
+
 export function BottomNav() {
+  // root layout 에서 한 번만 마운트되며 path 별로 가시성만 토글한다 (DOM remount X).
   const pathname = usePathname();
+  const visible = VISIBLE_PATHS.has(pathname);
   return (
     <nav
       aria-label="주요 메뉴"
-      className="fixed bottom-0 left-1/2 z-40 w-full max-w-screen-sm -translate-x-1/2 border-t border-stroke-thin bg-bg-normal md:max-w-screen-md lg:max-w-screen-lg"
+      aria-hidden={!visible}
+      className={cn(
+        "fixed bottom-0 left-1/2 z-40 w-full max-w-screen-sm -translate-x-1/2 border-t border-stroke-thin bg-bg-normal md:max-w-screen-md lg:max-w-screen-lg",
+        !visible && "hidden",
+      )}
     >
       <div className="flex h-20 items-center justify-around px-8">
         <NavItem

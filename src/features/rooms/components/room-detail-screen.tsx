@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
@@ -54,6 +54,26 @@ export function RoomDetailScreen({ roomId }: Props) {
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+
+  // 방 종료 자동 이탈 — active-room 조회 응답의 room 이 null 이면 종료된 것으로 간주.
+  // 단, 멤버였던 적이 있는 사용자만 redirect (비멤버 단순 조회는 영향 없음).
+  const [wasMember, setWasMember] = useState(false);
+  useEffect(() => {
+    if (activeRoomQuery.isLoading) return;
+    const active = activeRoomQuery.data?.room ?? null;
+    if (active && active.id === roomId) {
+      if (!wasMember) setWasMember(true);
+      return;
+    }
+    // room === null (또는 다른 방으로 바뀜) + 이전에 멤버였음 → 종료된 것.
+    if (wasMember) router.replace("/home");
+  }, [
+    activeRoomQuery.isLoading,
+    activeRoomQuery.data,
+    roomId,
+    router,
+    wasMember,
+  ]);
 
   const handleExitClick = () => {
     if (exitMutation.isPending) return;
@@ -192,7 +212,12 @@ export function RoomDetailScreen({ roomId }: Props) {
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
-          <ChatView roomId={room.id} me={me} isHost={isHost} />
+          <ChatView
+            roomId={room.id}
+            me={me}
+            isHost={isHost}
+            callStatus={room.callStatus}
+          />
         </div>
       )}
 

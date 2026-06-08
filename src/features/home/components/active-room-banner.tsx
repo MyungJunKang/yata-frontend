@@ -42,7 +42,7 @@ export function ActiveRoomBanner({ room }: Props) {
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1 rounded-full bg-bg-normal/90 px-3 py-2 text-caption-1 font-bold text-point-700">
-        돌아가기
+        방으로 이동
         <ChevronRight className="size-3" />
       </div>
     </Link>

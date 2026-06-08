@@ -239,9 +239,12 @@ export function SettlementNoticeCard({
         </div>
       )}
 
-      {/* 호스트는 채팅 카드에서는 액션 없음 — /settlement 의 호스트 관리 화면에서 처리 */}
+      {/* 호스트는 채팅 카드에서는 액션 없음 — /settlement 의 호스트 관리 화면에서 처리.
+          멤버의 송금(paid) 과 호스트의 수령 확인(confirmed) 을 분리해 노출. */}
       {isHost && members.length > 0 && (
         <p className="text-center text-caption-1 text-fg-tertiary">
+          {`송금 완료 ${members.filter((m) => m.status === "paid" || m.status === "confirmed").length} / ${members.length}명`}
+          {" · "}
           {`확인 완료 ${members.filter((m) => m.status === "confirmed").length} / ${members.length}명`}
         </p>
       )}

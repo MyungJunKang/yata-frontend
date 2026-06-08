@@ -2,6 +2,13 @@ import { atom } from "jotai";
 
 import type { LocationResult } from "@/features/location/api/location.types";
 
-// picker → form 으로 전달용 전역 atom. SPA 세션 동안 메모리에 유지.
-export const fromLocationAtom = atom<LocationResult | null>(null);
-export const toLocationAtom = atom<LocationResult | null>(null);
+/** location-picker 의 대상 — 방 검색(search) 과 방 생성(create) 의 상태를 분리. */
+export type LocationTarget = "search" | "create";
+
+// 방 검색 (home) — picker → 검색 필터로 사용.
+export const searchFromLocationAtom = atom<LocationResult | null>(null);
+export const searchToLocationAtom = atom<LocationResult | null>(null);
+
+// 방 생성 (create-room) — picker → form payload 로 사용.
+export const createFromLocationAtom = atom<LocationResult | null>(null);
+export const createToLocationAtom = atom<LocationResult | null>(null);

@@ -20,8 +20,11 @@ import {
   readRecentLocations,
 } from "@/features/location/lib/location-store";
 import {
-  fromLocationAtom,
-  toLocationAtom,
+  createFromLocationAtom,
+  createToLocationAtom,
+  type LocationTarget,
+  searchFromLocationAtom,
+  searchToLocationAtom,
 } from "@/features/location/store/location-atoms";
 import type { MapMarker } from "@/features/location/components/kakao-map-canvas";
 
@@ -39,16 +42,22 @@ const DEFAULT_CENTER = { lat: 37.4965, lng: 126.9572 };
 
 type Props = {
   kind: LocationKind;
+  /** 방 검색(search) / 방 생성(create) — 어느 atom 쌍에 저장할지 결정. 기본 search. */
+  target?: LocationTarget;
 };
 
 function getResultId(r: LocationResult): string {
   return r.id ?? `${r.name}|${r.lat.toFixed(5)},${r.lng.toFixed(5)}`;
 }
 
-export function LocationPicker({ kind }: Props) {
+export function LocationPicker({ kind, target = "search" }: Props) {
   const router = useRouter();
-  const [fromValue, setFromAtom] = useAtom(fromLocationAtom);
-  const [toValue, setToAtom] = useAtom(toLocationAtom);
+  const fromAtom =
+    target === "create" ? createFromLocationAtom : searchFromLocationAtom;
+  const toAtom =
+    target === "create" ? createToLocationAtom : searchToLocationAtom;
+  const [fromValue, setFromAtom] = useAtom(fromAtom);
+  const [toValue, setToAtom] = useAtom(toAtom);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<LocationResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
