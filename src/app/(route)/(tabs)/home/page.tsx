@@ -12,8 +12,8 @@ import { RouteCard } from "@/features/home/components/route-card";
 import { SectionHeader } from "@/features/home/components/section-header";
 import { useStatsSummaryQuery } from "@/features/home/api/use-home";
 import {
-  fromLocationAtom,
-  toLocationAtom,
+  searchFromLocationAtom,
+  searchToLocationAtom,
 } from "@/features/location/store/location-atoms";
 import { useRoomsQuery } from "@/features/rooms/api/use-rooms";
 import type { GetRoomsParams } from "@/features/rooms/api/room.types";
@@ -22,8 +22,8 @@ import { useActiveRoomQuery } from "@/features/user/api/use-user";
 
 export default function HomePage() {
   const router = useRouter();
-  const [fromLocation, setFromLocation] = useAtom(fromLocationAtom);
-  const [toLocation, setToLocation] = useAtom(toLocationAtom);
+  const [fromLocation, setFromLocation] = useAtom(searchFromLocationAtom);
+  const [toLocation, setToLocation] = useAtom(searchToLocationAtom);
 
   // 선택한 출발/도착 좌표로 방 목록 필터(반경 1km). 좌표가 바뀌면(선택·교환)
   // 쿼리 키가 바뀌어 TanStack Query 가 자동 refetch 한다.
@@ -78,14 +78,17 @@ export default function HomePage() {
         </div>
       )}
 
-      <RouteCard
-        from={fromLabel}
-        to={toLabel}
-        onSwap={handleSwap}
-        onReset={handleReset}
-        onPickFrom={() => router.push("/location-picker?kind=from")}
-        onPickTo={() => router.push("/location-picker?kind=to")}
-      />
+      <div className="flex flex-col gap-3">
+        <SectionHeader title="방 검색" />
+        <RouteCard
+          from={fromLabel}
+          to={toLabel}
+          onSwap={handleSwap}
+          onReset={handleReset}
+          onPickFrom={() => router.push("/location-picker?kind=from")}
+          onPickTo={() => router.push("/location-picker?kind=to")}
+        />
+      </div>
       <SectionHeader
         title="매칭 가능한 방"
         pillLabel={

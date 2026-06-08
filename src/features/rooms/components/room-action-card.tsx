@@ -12,6 +12,7 @@ import {
   useCancelCallMutation,
   useShareLocationMutation,
 } from "@/features/rooms/api/use-room-actions";
+import { useSettlementQuery } from "@/features/rooms/api/use-settlement";
 
 type Props = {
   roomId: string;
@@ -38,6 +39,9 @@ export function RoomActionCard({
   const callMutation = useCallTaxiMutation(roomId);
   const cancelMutation = useCancelCallMutation(roomId);
   const locationMutation = useShareLocationMutation(roomId);
+  // 정산이 이미 게시된 상태면 호출 취소 불가 — react-query 가 같은 키를 캐시하므로 중복 fetch 가 아니다.
+  const settlementQuery = useSettlementQuery(roomId);
+  const hasSettlement = !!settlementQuery.data;
 
   // 위치 공유 일시적 피드백 (성공/실패 메시지)
   const [locationFeedback, setLocationFeedback] = useState<{
@@ -62,7 +66,10 @@ export function RoomActionCard({
   const handleShareLocation = () => {
     if (locationMutation.isPending) return;
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setLocationFeedback({ tone: "error", text: "위치 권한이 필요해요" });
+      setLocationFeedback({
+        tone: "error",
+        text: "이 기기에서는 위치 공유를 지원하지 않아요.",
+      });
       return;
     }
     setLocationFeedback({ tone: "info", text: "위치 공유 중…" });
@@ -86,12 +93,24 @@ export function RoomActionCard({
                 text:
                   err instanceof ApiError
                     ? err.message
-                    : "위치 공유에 실패했어요",
+                    : "위치 공유에 실패했어요. 다시 시도해 주세요.",
               }),
           },
         );
       },
-      () => setLocationFeedback({ tone: "error", text: "위치 권한이 필요해요" }),
+      (err) => {
+        // 권한 거부 / 위치 불가 / 타임아웃을 사용자 친화 메시지로 분리
+        const text =
+          err.code === err.PERMISSION_DENIED
+            ? "위치 권한이 차단됐어요. 브라우저 설정에서 허용해 주세요."
+            : err.code === err.POSITION_UNAVAILABLE
+              ? "현재 위치를 가져올 수 없어요. 잠시 후 다시 시도해 주세요."
+              : err.code === err.TIMEOUT
+                ? "위치 조회에 시간이 너무 걸려요. 다시 시도해 주세요."
+                : "위치 공유에 실패했어요. 다시 시도해 주세요.";
+        setLocationFeedback({ tone: "error", text });
+      },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 5_000 },
     );
   };
 
@@ -110,7 +129,7 @@ export function RoomActionCard({
             {statusLabel}
           </span>
         </div>
-        {callStatus === "pending" && (
+        {callStatus === "pending" && isHost && (
           <Button
             variant="point"
             size="md"
@@ -124,14 +143,24 @@ export function RoomActionCard({
             {isCallPending ? "처리 중…" : "택시 호출"}
           </Button>
         )}
-        {callStatus === "called" && (
+        {callStatus === "pending" && !isHost && (
+          <span className="shrink-0 rounded-full bg-bg-subtle px-3 py-1.5 text-caption-1 font-bold text-fg-tertiary">
+            호스트 대기 중
+          </span>
+        )}
+        {callStatus === "called" && isHost && (
           <Button
             variant="point"
             size="md"
             className="h-10 shrink-0 rounded-sm px-4"
-            disabled={isCancelPending}
+            disabled={isCancelPending || hasSettlement}
+            title={
+              hasSettlement
+                ? "정산이 시작돼 호출을 취소할 수 없어요"
+                : undefined
+            }
             onClick={() => {
-              if (isCancelPending) return;
+              if (isCancelPending || hasSettlement) return;
               cancelMutation.mutate();
             }}
           >

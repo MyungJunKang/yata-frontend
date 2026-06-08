@@ -48,7 +48,9 @@ export type RoomType = {
   maxCount: number;
   departAt: string;
   perPersonFare: number | null;
-  status: "pending";
+  status: RoomCallStatus;
+  startPoint?: string;
+  endPoint?: string;
 };
 
 export type RoomCallStatus =

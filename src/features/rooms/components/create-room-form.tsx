@@ -20,8 +20,8 @@ import { useCreateRoomMutation } from "@/features/rooms/api/use-create-room";
 import type { CreateRoomBody } from "@/features/rooms/api/room.types";
 import { ApiError } from "@/lib/api-client";
 import {
-  fromLocationAtom,
-  toLocationAtom,
+  createFromLocationAtom,
+  createToLocationAtom,
 } from "@/features/location/store/location-atoms";
 import { useFareEstimate } from "@/features/fare/api/use-fare-estimate";
 import type { FareEstimateRequest } from "@/features/fare/api/fare.types";
@@ -42,10 +42,10 @@ function formatAmPm(date: Date): string {
   return `${period} ${display}:${m}`;
 }
 
-function roundUpToNext30Min(d: Date): Date {
+function roundUpToNext5Min(d: Date): Date {
   const out = new Date(d);
   const minutes = out.getMinutes();
-  const remainder = 30 - (minutes % 30);
+  const remainder = minutes % 5 === 0 ? 0 : 5 - (minutes % 5);
   out.setMinutes(minutes + remainder, 0, 0);
   return out;
 }
@@ -69,10 +69,10 @@ function getApiErrorCode(err: unknown): string | undefined {
 
 export function CreateRoomForm() {
   const router = useRouter();
-  const [from, setFrom] = useAtom(fromLocationAtom);
-  const [to, setTo] = useAtom(toLocationAtom);
+  const [from, setFrom] = useAtom(createFromLocationAtom);
+  const [to, setTo] = useAtom(createToLocationAtom);
   const [departTime, setDepartTime] = useState<Date>(() =>
-    roundUpToNext30Min(new Date()),
+    roundUpToNext5Min(new Date()),
   );
   const [capacity, setCapacity] = useState(3);
   const [genderChoice, setGenderChoice] = useState<GenderPolicyChoice>("all");
@@ -166,13 +166,17 @@ export function CreateRoomForm() {
               label="출발지"
               value={from?.name ?? null}
               placeholder="출발지를 선택해 주세요"
-              onClick={() => router.push("/location-picker?kind=from")}
+              onClick={() =>
+                router.push("/location-picker?kind=from&target=create")
+              }
             />
             <RouteRow
               label="도착지"
               value={to?.name ?? null}
               placeholder="도착지를 선택해 주세요"
-              onClick={() => router.push("/location-picker?kind=to")}
+              onClick={() =>
+                router.push("/location-picker?kind=to&target=create")
+              }
             />
           </div>
           <button

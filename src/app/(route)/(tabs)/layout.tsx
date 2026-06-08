@@ -1,16 +1,10 @@
-import { BottomNav } from "@/components/ui/bottom-nav";
-import { RouteTransition } from "@/components/layout/route-transition";
-
 export default function TabsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // BottomNav 는 root layout 에서 전역 1회 마운트. 여기서는 fixed nav 높이만큼 pb-24 만 책임진다.
   return (
-    <div className="relative min-h-[100dvh] w-full pb-24">
-      {/* BottomNav 는 transition 밖에 두어 라우트 전환 시 깜빡임 방지 */}
-      <RouteTransition>{children}</RouteTransition>
-      <BottomNav />
-    </div>
+    <div className="relative min-h-[100dvh] w-full pb-24">{children}</div>
   );
 }

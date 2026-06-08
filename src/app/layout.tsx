@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { BottomNav } from "@/components/ui/bottom-nav";
 import { JotaiProvider } from "@/providers/jotai-provider";
 import { QueryProvider } from "@/providers/query-provider";
 
@@ -37,9 +38,11 @@ export default function RootLayout({
       <body className={pretendard.variable}>
         <JotaiProvider>
           <QueryProvider>
-            <main className="mx-auto w-full max-w-screen-sm px-4 sm:px-6 md:max-w-screen-md lg:max-w-screen-lg lg:px-8">
+            <main className="mx-auto w-full max-w-screen-sm md:max-w-screen-md lg:max-w-screen-lg">
               {children}
             </main>
+            {/* 전역 1회 마운트 — path 별 가시성 토글만 일어나 nav remount 가 없다. */}
+            <BottomNav />
           </QueryProvider>
         </JotaiProvider>
       </body>

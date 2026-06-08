@@ -3,10 +3,34 @@ import { api, ApiError } from "@/lib/api-client";
 import type {
   CreateSettlementBody,
   Settlement,
+  SettlementMemberStatus,
 } from "@/features/rooms/api/settlement.types";
 
-export const getSettlement = (roomId: string) =>
-  api.get<Settlement>(`/api/rooms/${roomId}/settlement`);
+/**
+ * 백엔드가 status 를 대문자(PAID) 또는 다른 형태로 보낼 수 있어 클라이언트 enum 으로 정규화.
+ * - "confirmed" 또는 confirm 으로 시작 → "confirmed"
+ * - "paid" 또는 paid 로 시작 → "paid"
+ * - 그 외 → "unpaid"
+ */
+function normalizeStatus(raw: unknown): SettlementMemberStatus {
+  const s = typeof raw === "string" ? raw.toLowerCase() : "";
+  if (s === "confirmed" || s.startsWith("confirm")) return "confirmed";
+  if (s === "paid" || s.startsWith("paid")) return "paid";
+  return "unpaid";
+}
+
+function normalizeSettlement(s: Settlement): Settlement {
+  if (!s.members) return s;
+  return {
+    ...s,
+    members: s.members.map((m) => ({ ...m, status: normalizeStatus(m.status) })),
+  };
+}
+
+export const getSettlement = async (roomId: string): Promise<Settlement> => {
+  const data = await api.get<Settlement>(`/api/rooms/${roomId}/settlement`);
+  return normalizeSettlement(data);
+};
 
 /** 멤버가 본인이 송금했음을 알림 */
 export const markSettlementPaid = (roomId: string) =>
@@ -52,5 +76,5 @@ export const createSettlement = async (
     }
   });
   if (!res.ok) throw new ApiError(res.status, data);
-  return data as Settlement;
+  return normalizeSettlement(data as Settlement);
 };

@@ -32,11 +32,13 @@ function decompose(d: Date): { period: Period; hour12: number; minute5: number }
 }
 
 export function TimePickerSheet({ open, initial, onClose, onConfirm }: Props) {
-  const [period, setPeriod] = useState<Period>("오전");
-  const [hour, setHour] = useState<number>(9);
-  const [minute, setMinute] = useState<number>(0);
+  // initial 값으로 lazy-init — 첫 오픈 시 깜빡임 없이 현재 시각이 보이도록.
+  const initialDecomposed = decompose(initial);
+  const [period, setPeriod] = useState<Period>(initialDecomposed.period);
+  const [hour, setHour] = useState<number>(initialDecomposed.hour12);
+  const [minute, setMinute] = useState<number>(initialDecomposed.minute5);
 
-  // open 토글 시 initial 값으로 동기화
+  // open 토글 시 initial 값으로 재동기화 (외부에서 시간이 바뀐 경우 반영)
   useEffect(() => {
     if (!open) return;
     const { period, hour12, minute5 } = decompose(initial);

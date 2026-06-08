@@ -26,6 +26,15 @@ export function useSettlementQuery(roomId: string | null) {
       if (error instanceof ApiError && error.status === 404) return false;
       return failureCount < 2;
     },
+    // 멤버 송금 → 호스트 확인 흐름이 다른 클라이언트에서 일어나므로
+    // 정산이 모두 확정될 때까지 가벼운 폴링으로 동기화. 모두 확정되면 폴링 중단.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return false;
+      if (data.allConfirmed) return false;
+      return 10_000;
+    },
+    refetchOnWindowFocus: true,
   });
 }
 

@@ -39,12 +39,26 @@ export function validateStepTwo(d: SignupDraft): StepTwoErrors {
   return e;
 }
 
+/** 공백을 모두 제거해 정규화한 이름. 동명이인 가능성보다 본인명의 확인이 우선. */
+function normalizeName(raw: string): string {
+  return raw.trim().replace(/\s+/g, "");
+}
+
 export function validateStepThree(d: SignupDraft): StepThreeErrors {
   const e: StepThreeErrors = {};
   if (!d.bank) e.bank = "은행을 선택해 주세요.";
   if (!d.accountNumber) e.accountNumber = "계좌번호를 입력해 주세요.";
   else if (!/^\d{6,16}$/.test(d.accountNumber.replace(/-/g, "")))
     e.accountNumber = "올바른 계좌번호 형식이 아니에요.";
-  if (!d.accountHolder?.trim()) e.accountHolder = "예금주를 입력해 주세요.";
+  if (!d.accountHolder?.trim()) {
+    e.accountHolder = "예금주를 입력해 주세요.";
+  } else if (
+    d.name &&
+    normalizeName(d.accountHolder) !== normalizeName(d.name)
+  ) {
+    // 본인 명의 계좌만 등록 가능 — 가입자명과 예금주명이 일치해야 함.
+    e.accountHolder =
+      "본인 명의 계좌만 등록할 수 있어요. (가입자명과 예금주명이 달라요)";
+  }
   return e;
 }

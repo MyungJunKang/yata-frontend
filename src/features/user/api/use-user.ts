@@ -35,6 +35,15 @@ export function useActiveRoomQuery() {
   return useQuery({
     queryKey: userKeys.activeRoom(),
     queryFn: getActiveRoom,
+    // 다른 멤버의 액션(호스트의 택시 호출 등)을 반영하기 위해 가벼운 폴링.
+    // 방이 종료(archivedAt) 되거나 활성 방이 없으면 폴링을 중단한다.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data || !data.room) return false;
+      if (data.room.archivedAt) return false;
+      return 15_000;
+    },
+    refetchOnWindowFocus: true,
   });
 }
 

@@ -9,7 +9,11 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { YataLogo } from "@/components/ui/yata-logo";
-import { useActiveRoomQuery, useUserQuery } from "@/features/user/api/use-user";
+import {
+  useActiveRoomQuery,
+  usePaymentAccountQuery,
+  useUserQuery,
+} from "@/features/user/api/use-user";
 import {
   useConfirmSettlementPaymentMutation,
   useCreateSettlementMutation,
@@ -33,6 +37,9 @@ export function SettlementScreen({ roomId }: Props) {
   const activeRoomQuery = useActiveRoomQuery();
   const settlementQuery = useSettlementQuery(roomId);
   const createMutation = useCreateSettlementMutation(roomId);
+  // 호스트 본인의 등록 계좌 — 정산 공지에 입금 계좌로 첨부.
+  const accountQuery = usePaymentAccountQuery();
+  const myAccount = accountQuery.data;
 
   const room = activeRoomQuery.data?.room ?? null;
   const me = userQuery.data;
@@ -93,15 +100,30 @@ export function SettlementScreen({ roomId }: Props) {
 
   const handleSubmit = () => {
     if (!totalFare || capacity <= 0 || createMutation.isPending) return;
+    // 등록 계좌가 있으면 payout JSON 으로 첨부 — 멤버가 채팅 공지에서 보고 송금할 수 있게.
+    // settlement PaymentAccount 는 `holder` 필드, user PaymentAccount 는 `accountHolder` 라 매핑 필요.
+    const payout = myAccount
+      ? JSON.stringify({
+          bank: myAccount.bank,
+          accountNumber: myAccount.accountNumber,
+          holder: myAccount.accountHolder,
+        })
+      : undefined;
     createMutation.mutate(
       {
         totalFare,
         perPersonAmount: perPersonFare,
         membersCount: capacity,
         image: imageFile ?? undefined,
+        payout,
       },
       {
         onSuccess: () => router.push(`/room/${roomId}`),
+        // 정산이 이미 존재하면 백엔드가 에러로 응답할 수 있음.
+        // 그 경우 현재 화면에서 settlement 를 다시 가져와 기존 정산 뷰로 전환한다 (멤버가 먼저 송금 표시한 경우 등).
+        onError: () => {
+          settlementQuery.refetch();
+        },
       },
     );
   };
@@ -193,18 +215,33 @@ export function SettlementScreen({ roomId }: Props) {
             </p>
             <button
               type="button"
-              onClick={() => router.push("/mypage")}
+              onClick={() => router.push("/profile-edit")}
               className="text-caption-1 font-bold text-fg-point"
             >
               프로필에서 변경 ›
             </button>
           </header>
-          <p className="text-[17px] font-bold text-fg-primary">
-            계좌 미등록
-          </p>
-          <p className="text-[15px] tracking-wide text-fg-tertiary">
-            프로필 → 개인정보 수정에서 추가해 주세요.
-          </p>
+          {myAccount ? (
+            <>
+              <p className="text-[17px] font-bold text-fg-primary">
+                {myAccount.bank} · {myAccount.accountHolder}
+              </p>
+              <p className="text-[15px] tabular tracking-wide text-fg-secondary">
+                {myAccount.accountNumber}
+              </p>
+            </>
+          ) : accountQuery.isLoading ? (
+            <p className="text-[15px] text-fg-tertiary">계좌 정보 불러오는 중…</p>
+          ) : (
+            <>
+              <p className="text-[17px] font-bold text-fg-primary">
+                계좌 미등록
+              </p>
+              <p className="text-[15px] tracking-wide text-fg-tertiary">
+                프로필 → 개인정보 수정에서 추가해 주세요.
+              </p>
+            </>
+          )}
         </section>
 
         <p className="text-caption-1 font-bold text-fg-secondary">
@@ -239,10 +276,23 @@ export function SettlementScreen({ roomId }: Props) {
             <p className="text-[11px] font-bold uppercase tracking-wider text-point-600">
               입금 계좌
             </p>
-            <p className="text-body-2 font-bold text-fg-primary">
-              {me?.name ?? "—"}
-            </p>
-            <p className="text-body-2 text-fg-tertiary">계좌 미등록</p>
+            {myAccount ? (
+              <>
+                <p className="text-body-2 font-bold text-fg-primary">
+                  {myAccount.bank} · {myAccount.accountHolder}
+                </p>
+                <p className="text-body-2 tabular tracking-wide text-fg-secondary">
+                  {myAccount.accountNumber}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-body-2 font-bold text-fg-primary">
+                  {me?.name ?? "—"}
+                </p>
+                <p className="text-body-2 text-fg-tertiary">계좌 미등록</p>
+              </>
+            )}
           </div>
         </section>
 
@@ -381,6 +431,10 @@ function SettlementView({
   const members = settlement.members ?? [];
   const account = parsePayout(settlement.payout);
   const confirmedCount = members.filter((m) => m.status === "confirmed").length;
+  // 송금 완료(paid 또는 confirmed) — 호스트가 수령 확인을 누르기 전에도 카운터가 즉시 올라감.
+  const paidCount = members.filter(
+    (m) => m.status === "paid" || m.status === "confirmed",
+  ).length;
   const receivedTotal = confirmedCount * perPerson;
   const allConfirmed =
     members.length > 0 && confirmedCount === members.length;
@@ -504,6 +558,9 @@ function SettlementView({
             <p className="text-caption-1 font-bold text-fg-tertiary">진행률</p>
             <p className="text-[20px] font-bold text-fg-primary tabular">
               {confirmedCount} / {members.length}명
+            </p>
+            <p className="text-caption-1 font-bold text-fg-secondary tabular">
+              송금 완료 {paidCount} / {members.length}
             </p>
           </div>
           <div className="flex flex-col gap-1 rounded-2xl bg-bg-normal p-[18px] shadow-sm">
@@ -637,7 +694,8 @@ function MemberRow({
   onConfirmClick: () => void;
   disabled?: boolean;
 }) {
-  const meta = STATUS_META[member.status];
+  // 백엔드가 enum 외 값(예: 대소문자 다른 변형) 을 줄 수 있어 안전 fallback.
+  const meta = STATUS_META[member.status] ?? STATUS_META.unpaid;
   const time =
     member.status === "confirmed"
       ? formatStatusTime(member.confirmedAt)

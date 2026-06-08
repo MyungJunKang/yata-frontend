@@ -87,7 +87,9 @@ export function SignupStepThreeForm() {
       return;
     }
 
-    // 회원가입 성공 후 httpOnly 쿠키로 인증되므로 계좌 등록을 이어서 진행
+    // 회원가입 성공 후 httpOnly 쿠키로 인증되므로 계좌 등록을 이어서 진행.
+    // 계좌 등록은 fire-and-forget 이 아니라 결과를 기다린다 — 실패하면 draft 를 유지하고
+    // 사용자가 동일 입력으로 다시 시도하거나 마이페이지에서 추가 등록할 수 있게 한다.
     try {
       await updatePaymentAccountMutation.mutateAsync({
         bank: draft.bank!,
@@ -95,9 +97,11 @@ export function SignupStepThreeForm() {
         accountHolder: draft.accountHolder!,
       });
     } catch (err) {
-      // 이미 가입은 완료된 상태이므로 계좌 등록 실패는 차단하지 않고
-      // 마이페이지에서 다시 등록할 수 있도록 안내한다.
+      // 가입은 이미 끝났지만 계좌 등록만 실패한 상태 — draft 는 그대로 두고
+      // 사용자가 본 페이지에서 재시도하거나 마이페이지에서 등록할 수 있게 한다.
       console.error("payment account registration failed after signup", err);
+      setIsCompleting(false);
+      return;
     }
 
     reset();
@@ -110,7 +114,11 @@ export function SignupStepThreeForm() {
       ? signUpMutation.error.message
       : signUpMutation.error
         ? "회원가입 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요."
-        : null;
+        : updatePaymentAccountMutation.error instanceof ApiError
+          ? `계좌 등록에 실패했어요: ${updatePaymentAccountMutation.error.message} · 다시 시도하거나 가입 후 마이페이지에서 등록할 수 있어요.`
+          : updatePaymentAccountMutation.error
+            ? "계좌 등록에 실패했어요. 다시 시도하거나 가입 후 마이페이지에서 등록해 주세요."
+            : null;
 
   const blur = (key: keyof typeof errors) => () => {
     const errs = validateStepThree(draft);
