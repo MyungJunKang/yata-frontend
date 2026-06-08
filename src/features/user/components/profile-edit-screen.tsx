@@ -2,11 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, ChevronLeft, Loader2, User as UserIcon } from "lucide-react";
+import {
+  Camera,
+  ChevronLeft,
+  Loader2,
+  Lock,
+  User as UserIcon,
+  Wallet,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api-client";
 import { Segmented } from "@/components/ui/segmented";
+import { Combobox } from "@/components/ui/combobox";
+import { Input } from "@/components/ui/input";
+import { SignupFormField } from "@/features/auth/components/signup-form-field";
 import {
   usePaymentAccountQuery,
   useChangePasswordMutation,
@@ -16,6 +26,7 @@ import {
   useUserQuery,
 } from "@/features/user/api/use-user";
 import type { UserGender } from "@/features/user/api/user.types";
+import { BANK_OPTIONS } from "@/features/user/lib/banks";
 
 const GENDER_OPTIONS = [
   { label: "남성", value: "male" as const },
@@ -48,6 +59,12 @@ export function ProfileEditScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const [error, setError] = useState<string | null>(null);
+  // 정산 계좌 필드별 인라인 에러 — 회원가입 step3 와 동일 UX.
+  const [accountErrors, setAccountErrors] = useState<{
+    bank?: string;
+    accountHolder?: string;
+    accountNumber?: string;
+  }>({});
 
   const user = userQuery.data;
 
@@ -89,6 +106,31 @@ export function ProfileEditScreen() {
     updateAccount.isPending ||
     changePassword.isPending;
 
+  // 회원가입 step3 와 동일한 정책 — 본인 명의 일치, 6~16자리 숫자.
+  const validateAccount = () => {
+    const e: typeof accountErrors = {};
+    const filled = [bank, accountHolder, accountNumber].filter(
+      (v) => v.trim().length > 0,
+    ).length;
+    if (filled === 0) return e; // 비워두면 그냥 통과 (수정 안 함)
+    if (!bank) e.bank = "은행을 선택해 주세요.";
+    if (!accountHolder.trim()) {
+      e.accountHolder = "예금주를 입력해 주세요.";
+    } else if (
+      name &&
+      accountHolder.trim().replace(/\s+/g, "") !==
+        name.trim().replace(/\s+/g, "")
+    ) {
+      e.accountHolder =
+        "본인 명의 계좌만 등록할 수 있어요. (가입자명과 예금주명이 달라요)";
+    }
+    const digits = accountNumber.replace(/-/g, "");
+    if (!accountNumber) e.accountNumber = "계좌번호를 입력해 주세요.";
+    else if (!/^\d{6,16}$/.test(digits))
+      e.accountNumber = "올바른 계좌번호 형식이 아니에요.";
+    return e;
+  };
+
   const handleSave = async () => {
     setError(null);
 
@@ -103,13 +145,16 @@ export function ProfileEditScreen() {
         return setError("새 비밀번호가 일치하지 않아요.");
     }
 
-    // 계좌 입력 검증 (일부만 입력 시 전체 요구)
-    const accountFilled = [bank, accountHolder, accountNumber].filter(
+    // 계좌 입력 검증 — 회원가입 step3 와 동일 (본인 명의 + 숫자 6~16자리).
+    const accErrs = validateAccount();
+    setAccountErrors(accErrs);
+    const accountTouched = [bank, accountHolder, accountNumber].some(
       (v) => v.trim().length > 0,
     );
-    const accountTouched = accountFilled.length > 0;
-    if (accountTouched && accountFilled.length < 3)
-      return setError("정산 계좌 정보를 모두 입력해주세요.");
+    if (Object.keys(accErrs).length > 0) {
+      setError("정산 계좌 입력을 확인해 주세요.");
+      return;
+    }
 
     try {
       await updateProfile.mutateAsync({
@@ -239,35 +284,107 @@ export function ProfileEditScreen() {
           </FieldCard>
         </Section>
 
-        {/* 정산 계좌 */}
+        {/* 정산 계좌 — 회원가입 step3 와 동일 UI (은행 셀렉터, 본인명 잠금 표시, 숫자 6~16자리). */}
         <Section title="정산 계좌">
-          <FieldCard>
-            <Field label="은행">
-              <input
+          <div className="flex flex-col gap-4 rounded-2xl bg-bg-normal px-4 py-4 shadow-sm">
+            <SignupFormField
+              label="은행"
+              htmlFor="edit-bank"
+              error={accountErrors.bank}
+              helper="정산받을 은행을 선택해 주세요."
+            >
+              <Combobox
+                id="edit-bank"
                 value={bank}
-                onChange={(e) => setBank(e.target.value)}
-                placeholder="예: KB국민은행"
-                className={fieldInputCls}
+                onChange={(v) => {
+                  setBank(v);
+                  if (accountErrors.bank)
+                    setAccountErrors((p) => ({ ...p, bank: undefined }));
+                }}
+                onBlur={() =>
+                  setAccountErrors((p) => ({
+                    ...p,
+                    bank: validateAccount().bank,
+                  }))
+                }
+                options={BANK_OPTIONS}
+                placeholder="은행 선택"
+                invalid={!!accountErrors.bank}
+                searchable
+                searchPlaceholder="은행 검색"
               />
-            </Field>
-            <Field label="예금주">
-              <input
-                value={accountHolder}
-                onChange={(e) => setAccountHolder(e.target.value)}
-                placeholder="예금주명"
-                className={fieldInputCls}
-              />
-            </Field>
-            <Field label="계좌번호">
-              <input
-                value={accountNumber}
-                onChange={(e) => setAccountNumber(e.target.value)}
+            </SignupFormField>
+
+            <SignupFormField
+              label="예금주"
+              htmlFor="edit-account-holder"
+              error={accountErrors.accountHolder}
+              helper="본인 명의의 계좌만 등록할 수 있어요."
+            >
+              <div className="relative">
+                <Input
+                  id="edit-account-holder"
+                  type="text"
+                  placeholder="본인 이름"
+                  value={accountHolder}
+                  onChange={(e) => setAccountHolder(e.target.value)}
+                  onBlur={() =>
+                    setAccountErrors((p) => ({
+                      ...p,
+                      accountHolder: validateAccount().accountHolder,
+                    }))
+                  }
+                  aria-invalid={!!accountErrors.accountHolder}
+                  className="pr-11"
+                />
+                <Lock
+                  aria-hidden
+                  className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-fg-tertiary"
+                />
+              </div>
+            </SignupFormField>
+
+            <SignupFormField
+              label="계좌번호"
+              htmlFor="edit-account-number"
+              error={accountErrors.accountNumber}
+              helper="하이픈(-) 없이 숫자만 입력해 주세요."
+            >
+              <Input
+                id="edit-account-number"
+                type="text"
                 inputMode="numeric"
-                placeholder="'-' 없이 입력"
-                className={fieldInputCls}
+                placeholder="예: 1101234567890"
+                value={accountNumber}
+                onChange={(e) =>
+                  setAccountNumber(e.target.value.replace(/\D/g, ""))
+                }
+                onBlur={() =>
+                  setAccountErrors((p) => ({
+                    ...p,
+                    accountNumber: validateAccount().accountNumber,
+                  }))
+                }
+                aria-invalid={!!accountErrors.accountNumber}
+                maxLength={16}
               />
-            </Field>
-          </FieldCard>
+            </SignupFormField>
+
+            <div className="flex items-start gap-3 rounded-md bg-bg-subtle p-4">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-point-100">
+                <Wallet className="size-5 text-fg-point" />
+              </span>
+              <div className="flex flex-col gap-1">
+                <p className="text-strong-2 text-fg-primary">
+                  빠르고 안전한 정산
+                </p>
+                <p className="text-caption-1 leading-[1.5] text-fg-secondary">
+                  정산 시 자동으로 송금받을 계좌로 사용돼요. 매번 입력할 필요
+                  없이 빠르게 정산이 진행됩니다.
+                </p>
+              </div>
+            </div>
+          </div>
         </Section>
 
         {/* 비밀번호 변경 */}

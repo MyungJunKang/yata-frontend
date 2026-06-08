@@ -13,25 +13,9 @@ import { SignupFormField } from "@/features/auth/components/signup-form-field";
 import { SignupProgress } from "@/features/auth/components/signup-progress";
 import { useSignup } from "@/features/auth/components/signup-context";
 import { validateStepThree } from "@/features/auth/lib/signup-validation";
+import { BANK_OPTIONS } from "@/features/user/lib/banks";
 import { ApiError } from "@/lib/api-client";
 import type { SignUpBody } from "@/features/auth/api/auth.types";
-
-const BANKS = [
-  "KB국민은행",
-  "신한은행",
-  "우리은행",
-  "하나은행",
-  "NH농협은행",
-  "카카오뱅크",
-  "토스뱅크",
-  "SC제일은행",
-  "IBK기업은행",
-  "케이뱅크",
-  "Sh수협은행",
-  "씨티은행",
-] as const;
-
-const BANK_OPTIONS = BANKS.map((b) => ({ label: b, value: b }));
 
 export function SignupStepThreeForm() {
   const router = useRouter();

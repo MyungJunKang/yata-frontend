@@ -10,6 +10,8 @@ import {
 } from "@/features/messages/api/use-messages";
 import { useSettlementQuery } from "@/features/rooms/api/use-settlement";
 import type { UserType } from "@/features/user/api/user.types";
+import type { ChatMessage } from "@/features/messages/api/messages.types";
+import type { RoomCallStatus } from "@/features/rooms/api/room.types";
 import { MessageBubble } from "@/features/messages/components/message-bubble";
 import { MessageInput } from "@/features/messages/components/message-input";
 import { SettlementNoticeCard } from "@/features/rooms/components/settlement-notice-card";
@@ -18,11 +20,15 @@ type Props = {
   roomId: string;
   me: UserType | undefined;
   isHost?: boolean;
+  callStatus: RoomCallStatus;
 };
 
 const STICK_THRESHOLD_PX = 80;
 
-export function ChatView({ roomId, me, isHost }: Props) {
+const TAXI_CALLED_KEY = (roomId: string) => `yata:taxi-called-at:${roomId}`;
+const TAXI_CALLED_VIRTUAL_ID = "__virtual__taxi-called__";
+
+export function ChatView({ roomId, me, isHost, callStatus }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const stickyRef = useRef(true);
@@ -33,13 +39,111 @@ export function ChatView({ roomId, me, isHost }: Props) {
   const settlementQuery = useSettlementQuery(roomId);
   const settlement = settlementQuery.data ?? null;
 
-  // image 종류는 아직 미지원 — 표시 자체를 안 함
-  const messages = useMemo(
-    () => (messagesQuery.data ?? []).filter((m) => m.kind !== "image"),
-    [messagesQuery.data],
-  );
+  // callStatus === "called" 진입 시각을 로컬에 저장해 채팅에 시스템 메시지로 표시.
+  // 백엔드 전송이 아니므로 클라이언트별 인지(새로고침 후에도 유지)에 그친다.
+  const [taxiCalledAt, setTaxiCalledAt] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem(TAXI_CALLED_KEY(roomId));
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = TAXI_CALLED_KEY(roomId);
+    if (callStatus === "called") {
+      if (!taxiCalledAt) {
+        const now = new Date().toISOString();
+        window.localStorage.setItem(key, now);
+        setTaxiCalledAt(now);
+      }
+      return;
+    }
+    // settling/completed 는 호출이 실제 일어났으므로 유지, pending/calling 으로 돌아갔을 때만 정리.
+    if (
+      (callStatus === "pending" || callStatus === "calling") &&
+      taxiCalledAt
+    ) {
+      window.localStorage.removeItem(key);
+      setTaxiCalledAt(null);
+    }
+  }, [callStatus, roomId, taxiCalledAt]);
+
+  // image 종류는 아직 미지원 — 표시 자체를 안 함.
+  // 가상 택시 호출 시스템 메시지가 있으면 createdAt 기준으로 합쳐 정렬.
+  const messages = useMemo(() => {
+    const base = (messagesQuery.data ?? []).filter((m) => m.kind !== "image");
+    if (!taxiCalledAt) return base;
+    const virtualTaxiMessage: ChatMessage = {
+      id: TAXI_CALLED_VIRTUAL_ID,
+      senderId: "__system__",
+      senderName: "system",
+      avatarUrl: null,
+      kind: "system",
+      text: "호스트가 택시를 호출했어요",
+      attachmentUrl: null,
+      data: null,
+      createdAt: taxiCalledAt,
+    };
+    return [...base, virtualTaxiMessage].sort((a, b) =>
+      a.createdAt.localeCompare(b.createdAt),
+    );
+  }, [messagesQuery.data, taxiCalledAt]);
   const hasAnnouncement = messages.some((m) => m.kind === "announcement");
   const lastSettlementRefetchRef = useRef<string | null>(null);
+
+  // ── 가짜 typing indicator ──────────────────────────────────────────────
+  // 폴링 기반이라 새 메시지가 갑자기 떠서 부자연스러움 → 다른 사람의 신규 메시지를
+  // 잠시 숨기고 "..." typing bubble 을 띄운 뒤 노출. 본인/시스템/announcement 는
+  // 그대로 즉시 노출.
+  const [displayedMessages, setDisplayedMessages] = useState<ChatMessage[]>([]);
+  const [typingFromName, setTypingFromName] = useState<string | null>(null);
+  const lastIdsRef = useRef<Set<string>>(new Set());
+  const initializedRef = useRef(false);
+
+  useEffect(() => {
+    if (!initializedRef.current) {
+      // 첫 fetch 가 끝날 때까지(=메시지 1개라도 오기 전까지) 기다리되,
+      // 빈 방인 경우엔 그냥 빈 배열로 초기화.
+      setDisplayedMessages(messages);
+      lastIdsRef.current = new Set(messages.map((m) => m.id));
+      if (messages.length > 0) initializedRef.current = true;
+      return;
+    }
+
+    const currentIds = new Set(messages.map((m) => m.id));
+    const sameSet =
+      currentIds.size === lastIdsRef.current.size &&
+      [...currentIds].every((id) => lastIdsRef.current.has(id));
+    if (sameSet) return;
+
+    const newOnes = messages.filter((m) => !lastIdsRef.current.has(m.id));
+    const delayedOnes = newOnes.filter(
+      (m) =>
+        !m.id.startsWith("optimistic-") &&
+        m.senderId !== (me?.id ?? "") &&
+        m.kind !== "announcement" &&
+        m.kind !== "system",
+    );
+
+    if (delayedOnes.length === 0) {
+      // 즉시 노출 — 본인 메시지, optimistic, system/announcement 등.
+      setDisplayedMessages(messages);
+      lastIdsRef.current = currentIds;
+      return;
+    }
+
+    // 본인/시스템 등 즉시 노출 분은 먼저 보여주고, 상대 메시지는 typing 후 노출.
+    const delayedIdSet = new Set(delayedOnes.map((m) => m.id));
+    setDisplayedMessages(messages.filter((m) => !delayedIdSet.has(m.id)));
+    setTypingFromName(delayedOnes[0].senderName);
+
+    const timer = setTimeout(() => {
+      setDisplayedMessages(messages);
+      setTypingFromName(null);
+      lastIdsRef.current = currentIds;
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [messages, me?.id]);
+  // ──────────────────────────────────────────────────────────────────────
 
   // 새 announcement 가 도착하면 settlement 도 즉시 재조회 (members 상태 받아오기)
   useEffect(() => {
@@ -71,15 +175,15 @@ export function ChatView({ roomId, me, isHost }: Props) {
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
 
-  // 새 메시지 추가 시 sticky 면 bottom 으로, 아니면 badge
+  // 새 메시지/typing 추가 시 sticky 면 bottom 으로, 아니면 badge
   useLayoutEffect(() => {
-    if (!messages.length) return;
+    if (!displayedMessages.length && !typingFromName) return;
     if (stickyRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: "auto" });
     } else {
       setShowNewBadge(true);
     }
-  }, [messages.length]);
+  }, [displayedMessages.length, typingFromName]);
 
   const handleSend = (text: string) => {
     sendMutation.mutate({ kind: "text", text });
@@ -95,7 +199,7 @@ export function ChatView({ roomId, me, isHost }: Props) {
         : null;
 
   const renderItems = useMemo(() => {
-    return messages.map((m, i) => {
+    return displayedMessages.map((m, i) => {
       // announcement 메시지는 별도 GET /settlement 응답을 결합해 정산 카드로 렌더
       if (m.kind === "announcement") {
         if (!settlement) {
@@ -121,7 +225,7 @@ export function ChatView({ roomId, me, isHost }: Props) {
           />
         );
       }
-      const prev = messages[i - 1];
+      const prev = displayedMessages[i - 1];
       const showHeader =
         !prev ||
         prev.senderId !== m.senderId ||
@@ -140,7 +244,7 @@ export function ChatView({ roomId, me, isHost }: Props) {
         />
       );
     });
-  }, [messages, me?.id, isHost, roomId, settlement]);
+  }, [displayedMessages, me?.id, isHost, roomId, settlement]);
 
   return (
     <div className="relative flex h-full w-full flex-col">
@@ -157,7 +261,10 @@ export function ChatView({ roomId, me, isHost }: Props) {
             아직 메시지가 없어요. 인사부터 보내볼까요?
           </p>
         ) : (
-          renderItems
+          <>
+            {renderItems}
+            {typingFromName && <TypingBubble name={typingFromName} />}
+          </>
         )}
         <div ref={bottomRef} />
       </div>
@@ -185,6 +292,26 @@ export function ChatView({ roomId, me, isHost }: Props) {
       )}
 
       <MessageInput onSend={handleSend} disabled={sendMutation.isPending} />
+    </div>
+  );
+}
+
+/**
+ * 상대방 새 메시지를 곧 표시한다는 "..." 인디케이터 — 실제 typing 이벤트가 아니라
+ * 폴링 기반 렌더의 어색함을 가리는 시각적 트릭.
+ */
+function TypingBubble({ name }: { name: string }) {
+  return (
+    <div className="flex w-full items-start gap-2.5">
+      <div className="size-9 shrink-0" />
+      <div className="flex max-w-[78%] flex-col gap-1">
+        <p className="px-1 text-caption-1 font-bold text-fg-point">{name}</p>
+        <div className="flex items-center gap-1 rounded-bl-md rounded-br-2xl rounded-tl-2xl rounded-tr-2xl bg-bg-normal px-3.5 py-3.5 shadow-sm">
+          <span className="size-1.5 animate-bounce rounded-full bg-fg-tertiary [animation-delay:-200ms]" />
+          <span className="size-1.5 animate-bounce rounded-full bg-fg-tertiary [animation-delay:-100ms]" />
+          <span className="size-1.5 animate-bounce rounded-full bg-fg-tertiary" />
+        </div>
+      </div>
     </div>
   );
 }

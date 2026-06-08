@@ -1,20 +1,46 @@
 "use client";
 
+import { useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Loader2 } from "lucide-react";
 
-import { useRideHistoryQuery } from "@/features/user/api/use-user";
+import { useRideHistoryInfiniteQuery } from "@/features/user/api/use-user";
 import { RideCard } from "@/features/user/components/ride-card";
 
-// 무한스크롤은 후속 — 일단 한 번에 최대치 정도를 가져온다.
-const PAGE_LIMIT = 50;
+// 한 페이지당 가져오는 항목 수. cursor 기반 페이지네이션.
+const PAGE_SIZE = 20;
 
 export function RideHistoryScreen() {
   const router = useRouter();
-  const { data, isLoading, isError } = useRideHistoryQuery({
-    limit: PAGE_LIMIT,
-  });
-  const rides = data ?? [];
+  const {
+    data,
+    isLoading,
+    isError,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useRideHistoryInfiniteQuery(PAGE_SIZE);
+
+  const rides = useMemo(() => data?.pages.flat() ?? [], [data]);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // sentinel 이 viewport 와 교차하면 다음 페이지 fetch.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    if (!hasNextPage) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { rootMargin: "200px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
     <div className="flex min-h-[100dvh] w-full flex-col bg-bg-page">
@@ -43,11 +69,23 @@ export function RideHistoryScreen() {
           <>
             <p className="px-1 text-caption-1 font-medium text-fg-tertiary">
               총 {rides.length}건
-              {rides.length >= PAGE_LIMIT && " (최근 기록부터 표시)"}
             </p>
             {rides.map((ride) => (
               <RideCard key={ride.id} ride={ride} />
             ))}
+            {/* IntersectionObserver sentinel — viewport 진입 시 다음 페이지 로드 */}
+            <div ref={sentinelRef} aria-hidden className="h-px w-full" />
+            {isFetchingNextPage && (
+              <div className="flex w-full items-center justify-center gap-2 py-4 text-caption-1 font-medium text-fg-tertiary">
+                <Loader2 className="size-4 animate-spin" />
+                불러오는 중…
+              </div>
+            )}
+            {!hasNextPage && rides.length > 0 && (
+              <p className="py-4 text-center text-caption-1 font-medium text-fg-tertiary">
+                마지막 기록까지 봤어요
+              </p>
+            )}
           </>
         )}
       </div>

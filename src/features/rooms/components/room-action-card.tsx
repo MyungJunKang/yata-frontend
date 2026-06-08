@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CarFront, MapPin, Receipt, Users } from "lucide-react";
+import {
+  AlertCircle,
+  CarFront,
+  Loader2,
+  MapPin,
+  Receipt,
+  Users,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api-client";
@@ -10,9 +17,14 @@ import { Button } from "@/components/ui/button";
 import {
   useCallTaxiMutation,
   useCancelCallMutation,
-  useShareLocationMutation,
 } from "@/features/rooms/api/use-room-actions";
 import { useSettlementQuery } from "@/features/rooms/api/use-settlement";
+import { useUserQuery } from "@/features/user/api/use-user";
+import { useSendMessageMutation } from "@/features/messages/api/use-messages";
+import {
+  getNearbyPlaces,
+  reverseGeocode,
+} from "@/features/location/api/location";
 
 type Props = {
   roomId: string;
@@ -38,7 +50,10 @@ export function RoomActionCard({
   const router = useRouter();
   const callMutation = useCallTaxiMutation(roomId);
   const cancelMutation = useCancelCallMutation(roomId);
-  const locationMutation = useShareLocationMutation(roomId);
+  const userQuery = useUserQuery();
+  const me = userQuery.data;
+  // 위치 공유는 카카오맵 링크를 포함한 채팅 텍스트 메시지로 브로드캐스트.
+  const sendLocationMessage = useSendMessageMutation(roomId, me);
   // 정산이 이미 게시된 상태면 호출 취소 불가 — react-query 가 같은 키를 캐시하므로 중복 fetch 가 아니다.
   const settlementQuery = useSettlementQuery(roomId);
   const hasSettlement = !!settlementQuery.data;
@@ -64,7 +79,7 @@ export function RoomActionCard({
     : null;
 
   const handleShareLocation = () => {
-    if (locationMutation.isPending) return;
+    if (sendLocationMessage.isPending) return;
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setLocationFeedback({
         tone: "error",
@@ -74,19 +89,25 @@ export function RoomActionCard({
     }
     setLocationFeedback({ tone: "info", text: "위치 공유 중…" });
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        locationMutation.mutate(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        // 좌표 → 사람이 읽을 수 있는 장소명. 가장 가까운 POI(상호/건물) → 도로명 → 좌표 순으로 폴백.
+        let label = await resolvePlaceLabel(lat, lng);
+        if (!label) label = `내 위치 (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+        const safeLabel = label.replace(/\]/g, ")");
+        // 카카오맵 공유 링크 — 클릭하면 해당 좌표가 마커로 떠 있는 지도가 열림.
+        // 마크다운 [text](url) 파싱과 충돌하지 않도록 URL 안의 괄호는 인코딩.
+        const mapUrl = `https://map.kakao.com/link/map/${encodeURIComponent(
+          label,
+        )},${lat.toFixed(6)},${lng.toFixed(6)}`
+          .replace(/\(/g, "%28")
+          .replace(/\)/g, "%29");
+        const text = `📍 현재 위치를 공유했어요 - [${safeLabel}](${mapUrl})`;
+        sendLocationMessage.mutate(
+          { kind: "text", text },
           {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-          },
-          {
-            onSuccess: () =>
-              setLocationFeedback({
-                tone: "info",
-                text: "현재 위치를 공유했어요",
-              }),
+            onSuccess: () => setLocationFeedback(null),
             onError: (err) =>
               setLocationFeedback({
                 tone: "error",
@@ -186,10 +207,11 @@ export function RoomActionCard({
         <button
           type="button"
           onClick={handleShareLocation}
-          className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[14px] bg-gray-100 text-strong-2 text-fg-primary"
+          disabled={sendLocationMessage.isPending}
+          className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[14px] bg-gray-100 text-strong-2 text-fg-primary disabled:opacity-60"
         >
           <MapPin className="size-4" />
-          실시간 위치 공유
+          {sendLocationMessage.isPending ? "공유 중…" : "실시간 위치 공유"}
         </button>
         <button
           type="button"
@@ -212,17 +234,56 @@ export function RoomActionCard({
       )}
 
       {locationFeedback && (
-        <p
+        <div
+          role={locationFeedback.tone === "error" ? "alert" : undefined}
           className={cn(
-            "rounded-lg px-3 py-2 text-caption-1",
+            "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-caption-1 font-medium",
             locationFeedback.tone === "error"
-              ? "bg-red-100 text-fg-warning"
-              : "bg-bg-subtle text-fg-secondary",
+              ? "border-red-200 bg-red-50 text-fg-warning"
+              : "border-point-200 bg-point-50 text-fg-point",
           )}
         >
-          {locationFeedback.text}
-        </p>
+          <span
+            className={cn(
+              "flex size-6 shrink-0 items-center justify-center rounded-full",
+              locationFeedback.tone === "error"
+                ? "bg-red-100"
+                : "bg-point-100",
+            )}
+          >
+            {locationFeedback.tone === "error" ? (
+              <AlertCircle className="size-3.5" />
+            ) : (
+              <Loader2 className="size-3.5 animate-spin" />
+            )}
+          </span>
+          <span className="flex-1 leading-snug">{locationFeedback.text}</span>
+        </div>
       )}
     </div>
   );
+}
+
+/**
+ * 좌표를 사람이 읽기 쉬운 장소명으로 변환.
+ * 가장 가까운 POI(상호/건물) → 도로명 주소 순으로 폴백, 둘 다 실패하면 null.
+ */
+async function resolvePlaceLabel(
+  lat: number,
+  lng: number,
+): Promise<string | null> {
+  try {
+    const nearby = await getNearbyPlaces(lat, lng, { radius: 50, limit: 1 });
+    const first = nearby.places[0];
+    if (first?.name) return first.name;
+  } catch {
+    // POI 검색 실패는 무시 — 도로명으로 폴백
+  }
+  try {
+    const rev = await reverseGeocode(lat, lng);
+    if (rev.address) return rev.address;
+  } catch {
+    // 무시
+  }
+  return null;
 }

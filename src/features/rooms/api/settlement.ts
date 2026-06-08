@@ -47,8 +47,9 @@ export const confirmSettlementPayment = (
 
 /**
  * POST /api/rooms/[id]/settlement
- * 백엔드가 multipart/form-data 를 받으므로 FormData 로 전송.
- * image 가 있으면 그대로 첨부, payout 은 PaymentAccount JSON 문자열.
+ * swagger 스펙대로 multipart/form-data 로 전송 — totalFare/perPersonAmount/
+ * membersCount/payout(JSON)/image(binary). 이미지는 settlement 호출 전에 별도로
+ * `/uploads/image` 로 선제 업로드해 둔다 (settlement 와는 독립).
  */
 export const createSettlement = async (
   roomId: string,
@@ -66,7 +67,6 @@ export const createSettlement = async (
     body: fd,
     credentials: "same-origin",
   });
-
   const data = await res.text().then((t) => {
     if (!t) return null;
     try {

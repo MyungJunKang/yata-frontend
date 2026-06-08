@@ -34,6 +34,6 @@ export type CreateSettlementBody = {
   membersCount: number;
   /** PaymentAccount JSON.stringify(...) */
   payout?: string;
-  /** 정산 영수증 이미지 (선택) */
+  /** 영수증 이미지 — multipart 바이너리 필드(image) */
   image?: File;
 };
