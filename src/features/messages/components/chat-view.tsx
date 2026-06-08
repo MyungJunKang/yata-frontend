@@ -110,9 +110,10 @@ export function ChatView({ roomId, me, isHost, callStatus }: Props) {
     }
 
     const currentIds = new Set(messages.map((m) => m.id));
+    // Set spread 가 tsconfig target 에 따라 안 되므로 messages.every 로 직접 검사.
     const sameSet =
       currentIds.size === lastIdsRef.current.size &&
-      [...currentIds].every((id) => lastIdsRef.current.has(id));
+      messages.every((m) => lastIdsRef.current.has(m.id));
     if (sameSet) return;
 
     const newOnes = messages.filter((m) => !lastIdsRef.current.has(m.id));

@@ -125,8 +125,8 @@ function renderTextWithLinks(text: string, variant: "mine" | "other") {
   );
   const out: React.ReactNode[] = [];
   let cursor = 0;
-  // matchAll 로 모든 매칭을 순회 — split 보다 마크다운 + bare URL 혼합 처리에 안전.
-  for (const m of text.matchAll(LINK_REGEX)) {
+  // matchAll 결과는 iterator — Set/iterator spread 제약 회피 위해 Array.from 으로 즉시 변환.
+  for (const m of Array.from(text.matchAll(LINK_REGEX))) {
     const start = m.index ?? 0;
     const matched = m[0];
     if (start > cursor) {
