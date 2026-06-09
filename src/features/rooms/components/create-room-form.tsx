@@ -15,8 +15,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { AlertDialog } from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { useCreateRoomMutation } from "@/features/rooms/api/use-create-room";
+import { usePaymentAccountQuery } from "@/features/user/api/use-user";
 import type { CreateRoomBody } from "@/features/rooms/api/room.types";
 import { ApiError } from "@/lib/api-client";
 import {
@@ -79,7 +81,13 @@ export function CreateRoomForm() {
   const [message, setMessage] = useState("");
   const [timeSheetOpen, setTimeSheetOpen] = useState(false);
   const [alreadyInRoomOpen, setAlreadyInRoomOpen] = useState(false);
+  // 정산 계좌 미등록 시 방 생성 차단 — 안내 후 계좌 등록 화면으로 유도.
+  const [accountGuardOpen, setAccountGuardOpen] = useState(false);
   const mutation = useCreateRoomMutation();
+  const paymentAccountQuery = usePaymentAccountQuery();
+  // 404 → data undefined + isError. 등록되어 있으면 data 가 채워진다.
+  const hasPaymentAccount =
+    !paymentAccountQuery.isLoading && !!paymentAccountQuery.data;
 
   const fareBody: FareEstimateRequest | null = useMemo(() => {
     if (!from || !to) return null;
@@ -122,6 +130,11 @@ export function CreateRoomForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!from || !to || totalFare == null) return;
+    // 호스트는 정산을 받아야 하므로 본인 명의 계좌 등록이 선행 조건.
+    if (!hasPaymentAccount) {
+      setAccountGuardOpen(true);
+      return;
+    }
     const body: CreateRoomBody = {
       startPoint: from.name,
       startLat: from.lat,
@@ -290,6 +303,19 @@ export function CreateRoomForm() {
         initial={departTime}
         onClose={() => setTimeSheetOpen(false)}
         onConfirm={setDepartTime}
+      />
+
+      <ConfirmDialog
+        open={accountGuardOpen}
+        title="정산 계좌 등록이 필요해요"
+        description="방을 만들려면 정산 받을 본인 명의 계좌가 먼저 등록되어 있어야 해요."
+        confirmLabel="계좌 등록하러 가기"
+        cancelLabel="나중에"
+        onConfirm={() => {
+          setAccountGuardOpen(false);
+          router.push("/profile-edit");
+        }}
+        onCancel={() => setAccountGuardOpen(false)}
       />
 
       <AlertDialog

@@ -38,16 +38,11 @@ export type GetRideHistoryParams = {
   cursor?: string;
 };
 
-/** PATCH /me body — 이름·전화·성별·프로필 이미지 메타 수정 가능 */
+/** PATCH /me body — 이름·전화·성별만 수정 가능 (프로필 이미지는 업로드 API 가 자체 저장) */
 export type UpdateProfileBody = {
   name?: string;
   phone?: string;
   gender?: UserGender;
-  /** 업로드 결과의 `url` (예: `/uploads/xxx.jpg`) 을 그대로 저장. */
-  profileImageUrl?: string | null;
-  /** 업로드 결과 메타 — 렌더 시 레이아웃 시프트 방지에 사용. */
-  profileImageWidth?: number | null;
-  profileImageHeight?: number | null;
 };
 
 export type UpdateProfileResponse = {

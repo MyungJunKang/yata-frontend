@@ -7,10 +7,14 @@ import { ArrowRight, BadgeCheck, CarFront, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AlertDialog } from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatDepartAt } from "@/features/rooms/lib/format";
 import type { RoomCallStatus, RoomType } from "@/features/rooms/api/room.types";
 import { useJoinRoomMutation } from "@/features/rooms/api/use-room-actions";
-import { useUserQuery } from "@/features/user/api/use-user";
+import {
+  usePaymentAccountQuery,
+  useUserQuery,
+} from "@/features/user/api/use-user";
 import { ApiError } from "@/lib/api-client";
 
 type Props = {
@@ -31,7 +35,12 @@ export function RoomCard({ room, isLocked = false }: Props) {
   const router = useRouter();
   const userQuery = useUserQuery();
   const me = userQuery.data;
+  const paymentAccountQuery = usePaymentAccountQuery();
+  // 404 → data 비어 있음. 등록 완료된 경우에만 true.
+  const hasPaymentAccount =
+    !paymentAccountQuery.isLoading && !!paymentAccountQuery.data;
   const [lockAlertOpen, setLockAlertOpen] = useState(false);
+  const [accountGuardOpen, setAccountGuardOpen] = useState(false);
   const isMine =
     !!me &&
     (me.id === room.host.userId || me.activeRoomId === room.id);
@@ -57,6 +66,11 @@ export function RoomCard({ room, isLocked = false }: Props) {
       return;
     }
     if (isDisabled || joinMutation.isPending) return;
+    // 정산을 위해 본인 명의 계좌 등록이 선행 조건. 미등록이면 차단 + 등록 유도.
+    if (!hasPaymentAccount) {
+      setAccountGuardOpen(true);
+      return;
+    }
     joinMutation.mutate(room.id, {
       onSuccess: () => router.push(`/room/${room.id}`),
     });
@@ -167,6 +181,19 @@ export function RoomCard({ room, isLocked = false }: Props) {
         title="참여할 수 없어요"
         description="기존 매칭이 끝나야 참여 가능합니다."
         onClose={() => setLockAlertOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={accountGuardOpen}
+        title="정산 계좌 등록이 필요해요"
+        description="방에 참여하려면 정산 받을 본인 명의 계좌가 먼저 등록되어 있어야 해요."
+        confirmLabel="계좌 등록하러 가기"
+        cancelLabel="나중에"
+        onConfirm={() => {
+          setAccountGuardOpen(false);
+          router.push("/profile-edit");
+        }}
+        onCancel={() => setAccountGuardOpen(false)}
       />
     </article>
   );

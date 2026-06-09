@@ -19,7 +19,6 @@ import {
   updateProfile,
   uploadProfileImage,
 } from "@/features/user/api/user";
-import type { UploadResult } from "@/features/user/api/user.types";
 import { userKeys } from "@/features/user/api/query-keys";
 import type {
   GetRideHistoryParams,
@@ -117,25 +116,11 @@ export function useChangePasswordMutation() {
 
 export function useUploadProfileImageMutation() {
   const qc = useQueryClient();
-  return useMutation<UploadResult, Error, File>({
-    // `POST /me/profile-image` 는 업로드 메타(`url`) 만 반환하고 user 를 갱신하지 않으므로
-    // 클라이언트가 받은 url 을 `PATCH /me` 로 명시적으로 저장한다. PATCH 가 실패해도
-    // 업로드 자체는 성공한 상태이므로 url 은 그대로 반환.
-    mutationFn: async (file) => {
-      const result = await uploadProfileImage(file);
-      try {
-        await updateProfile({
-          profileImageUrl: result.url,
-          profileImageWidth: result.width,
-          profileImageHeight: result.height,
-        });
-      } catch {
-        /* noop — 업로드는 성공, 저장만 실패한 케이스도 url 은 그대로 사용 */
-      }
-      return result;
-    },
+  return useMutation({
+    mutationFn: uploadProfileImage,
+    // 백엔드가 업로드 시점에 user.profileImageUrl 을 자동 갱신하므로 me 캐시 무효화로 충분.
+    // 응답의 url 을 즉시 캐시에 주입해 invalidate refetch 전에도 새 사진이 노출되도록 함.
     onSuccess: (result) => {
-      // 즉시 화면에 반영 + 서버 상태 최종 동기화.
       qc.setQueryData<UserType>(userKeys.me(), (prev) =>
         prev ? { ...prev, profileImageUrl: result.url } : prev,
       );
