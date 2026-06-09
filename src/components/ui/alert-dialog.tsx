@@ -6,6 +6,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 
 type Props = {
   open: boolean;
@@ -47,20 +48,18 @@ export function AlertDialog({
     return () => window.clearTimeout(t);
   }, [open]);
 
-  // Esc 닫기 + body 스크롤 잠금
+  // Esc 닫기
   useEffect(() => {
     if (!render) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [render, onClose]);
+
+  // body 스크롤 잠금 + scrollbar 보상으로 layout shift 제거.
+  useBodyScrollLock(render);
 
   if (!render) return null;
 

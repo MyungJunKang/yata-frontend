@@ -10,6 +10,7 @@ import {
 } from "@/features/rooms/api/settlement";
 import { roomKeys } from "@/features/rooms/api/query-keys";
 import { messageKeys } from "@/features/messages/api/query-keys";
+import { sendMessage } from "@/features/messages/api/messages";
 import type { CreateSettlementBody } from "@/features/rooms/api/settlement.types";
 import { ApiError } from "@/lib/api-client";
 
@@ -49,13 +50,23 @@ export function useCreateSettlementMutation(roomId: string) {
   });
 }
 
-/** 멤버: 송금 완료 표시 */
+/** 멤버: 송금 완료 표시 + 채팅으로 송금 완료 알림 */
 export function useMarkSettlementPaidMutation(roomId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => markSettlementPaid(roomId),
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: roomKeys.settlement(roomId) });
+      // 호스트가 채팅에서 바로 인지하도록 송금 완료 메시지를 자동 송출.
+      // 메시지 실패는 핵심 동작(paid) 을 막지 않도록 swallow.
+      try {
+        await sendMessage(roomId, {
+          kind: "text",
+          text: "💸 송금 완료했어요",
+        });
+      } catch {
+        /* noop */
+      }
       qc.invalidateQueries({ queryKey: messageKeys.list(roomId) });
     },
   });
