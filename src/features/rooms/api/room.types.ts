@@ -51,6 +51,8 @@ export type RoomType = {
   status: RoomCallStatus;
   startPoint?: string;
   endPoint?: string;
+  /** 호스트가 방 생성 시 남긴 한 줄 메시지 — 미입력이면 빈 문자열/누락. */
+  message?: string;
 };
 
 export type RoomCallStatus =

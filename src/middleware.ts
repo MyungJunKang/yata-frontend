@@ -49,9 +49,10 @@ export function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
-// 정적 파일과 BFF 라우트는 미들웨어 우회
+// 정적 파일과 BFF 라우트는 미들웨어 우회. `/uploads/*` 는 익명 이미지 패스스루
+// 라우트라 인증 리다이렉트에서 제외.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|images|api).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|images|api|uploads).*)",
   ],
 };
