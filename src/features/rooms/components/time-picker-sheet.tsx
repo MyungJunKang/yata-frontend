@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 
 type Period = "오전" | "오후";
 
@@ -47,17 +48,30 @@ export function TimePickerSheet({ open, initial, onClose, onConfirm }: Props) {
     setMinute(minute5);
   }, [open, initial]);
 
-  // open 중 body 스크롤 잠금
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  // 닫힘 애니메이션을 위해 mounted / visible 을 분리.
+  // - mounted=true 이면 DOM 에 존재 (애니메이션 출입을 위해 필요)
+  // - visible=true 이면 transition 으로 슬라이드 인 / 페이드 인
+  const ANIM_MS = 280;
+  const [mounted, setMounted] = useState(false);
+  const [visible, setVisible] = useState(false);
 
-  if (!open) return null;
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      // 다음 paint 에 visible=true 로 바꿔 transition 트리거.
+      const raf = requestAnimationFrame(() => setVisible(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    if (!mounted) return;
+    setVisible(false);
+    const t = window.setTimeout(() => setMounted(false), ANIM_MS);
+    return () => window.clearTimeout(t);
+  }, [open, mounted]);
+
+  // mounted 동안 body 스크롤 잠금 + scrollbar 보상.
+  useBodyScrollLock(mounted);
+
+  if (!mounted) return null;
 
   const handleConfirm = () => {
     const h24 =
@@ -85,9 +99,17 @@ export function TimePickerSheet({ open, initial, onClose, onConfirm }: Props) {
         type="button"
         onClick={onClose}
         aria-label="닫기"
-        className="absolute inset-0 cursor-default bg-black/40"
+        className={cn(
+          "absolute inset-0 cursor-default bg-black/40 transition-opacity duration-200 ease-out",
+          visible ? "opacity-100" : "opacity-0",
+        )}
       />
-      <div className="relative w-full max-w-screen-sm rounded-t-2xl bg-bg-normal shadow-2xl">
+      <div
+        className={cn(
+          "relative w-full max-w-screen-sm rounded-t-2xl bg-bg-normal shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
+          visible ? "translate-y-0" : "translate-y-full",
+        )}
+      >
         <div className="flex items-center justify-between px-5 pb-2 pt-4">
           <h2 className="text-strong-1 text-fg-primary">출발 시각</h2>
           <button

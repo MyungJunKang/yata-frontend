@@ -11,6 +11,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api-client";
+import { AlertDialog } from "@/components/ui/alert-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SplashLoader } from "@/components/ui/splash-loader";
 import { useActiveRoomQuery, useUserQuery } from "@/features/user/api/use-user";
@@ -54,6 +55,8 @@ export function RoomDetailScreen({ roomId }: Props) {
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  // 비호스트가 pending 외 상태에서 나가기 시도하면 안내 다이얼로그.
+  const [leaveBlockedOpen, setLeaveBlockedOpen] = useState(false);
 
   // 방 종료 자동 이탈 — active-room 조회 응답의 room 이 null 이면 종료된 것으로 간주.
   // 단, 멤버였던 적이 있는 사용자만 redirect (비멤버 단순 조회는 영향 없음).
@@ -77,6 +80,12 @@ export function RoomDetailScreen({ roomId }: Props) {
 
   const handleExitClick = () => {
     if (exitMutation.isPending) return;
+    // 호스트의 방 종료는 별도 흐름(아카이브) — 상태 무관하게 진행.
+    // 비호스트 멤버는 택시 호출 전(pending) 에만 방을 나갈 수 있다.
+    if (!isHost && room && room.callStatus !== "pending") {
+      setLeaveBlockedOpen(true);
+      return;
+    }
     setConfirmOpen(true);
   };
   const handleConfirmExit = () => {
@@ -238,6 +247,13 @@ export function RoomDetailScreen({ roomId }: Props) {
           if (exitMutation.isPending) return;
           setConfirmOpen(false);
         }}
+      />
+
+      <AlertDialog
+        open={leaveBlockedOpen}
+        title="지금은 방을 나갈 수 없어요"
+        description="택시 호출 전(모집 중) 에만 방을 나갈 수 있어요. 호출 이후에는 호스트와 함께 이용을 마무리해 주세요."
+        onClose={() => setLeaveBlockedOpen(false)}
       />
 
       <RoomInfoSheet

@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   useCallTaxiMutation,
   useCancelCallMutation,
@@ -56,13 +57,24 @@ export function RoomActionCard({
   const sendLocationMessage = useSendMessageMutation(roomId, me);
   // 정산이 이미 게시된 상태면 호출 취소 불가 — react-query 가 같은 키를 캐시하므로 중복 fetch 가 아니다.
   const settlementQuery = useSettlementQuery(roomId);
-  const hasSettlement = !!settlementQuery.data;
+  const settlement = settlementQuery.data;
+  const hasSettlement = !!settlement;
+  // 정산 멤버가 모두 송금 완료(paid 또는 confirmed) 이면 호스트 CTA 를 "송금 확인하기" 로 전환.
+  const allMembersPaid =
+    !!settlement &&
+    !!settlement.members &&
+    settlement.members.length > 0 &&
+    settlement.members.every(
+      (m) => m.status === "paid" || m.status === "confirmed",
+    );
 
   // 위치 공유 일시적 피드백 (성공/실패 메시지)
   const [locationFeedback, setLocationFeedback] = useState<{
     tone: "info" | "error";
     text: string;
   } | null>(null);
+  // 호스트 택시 호출 confirm — 다른 멤버에게 즉시 알림이 가니 의도치 않은 호출 방지.
+  const [callConfirmOpen, setCallConfirmOpen] = useState(false);
 
   const statusLabel = STATUS_LABEL[callStatus] ?? "—";
 
@@ -158,7 +170,7 @@ export function RoomActionCard({
             disabled={isCallPending}
             onClick={() => {
               if (isCallPending) return;
-              callMutation.mutate();
+              setCallConfirmOpen(true);
             }}
           >
             {isCallPending ? "처리 중…" : "택시 호출"}
@@ -190,7 +202,8 @@ export function RoomActionCard({
         )}
       </div>
 
-      {/* 호출 완료 + 호스트 → 도착/정산 진입 */}
+      {/* 호출 완료 + 호스트 → 도착/정산 진입.
+          모든 멤버가 송금 완료 상태면 "송금 확인하기" 로 CTA 전환. */}
       {callStatus === "called" && isHost && (
         <button
           type="button"
@@ -198,7 +211,7 @@ export function RoomActionCard({
           className="flex h-12 w-full items-center justify-center gap-1.5 rounded-md bg-point-500 font-bold text-fg-inverse hover:bg-point-600"
         >
           <Receipt className="size-4" />
-          도착했어요 · 정산하기
+          {allMembersPaid ? "송금 확인하기" : "도착했어요 · 정산하기"}
         </button>
       )}
 
@@ -260,6 +273,25 @@ export function RoomActionCard({
           <span className="flex-1 leading-snug">{locationFeedback.text}</span>
         </div>
       )}
+
+      <ConfirmDialog
+        open={callConfirmOpen}
+        title="택시를 호출하시겠어요?"
+        description="호출 후에는 멤버가 방을 떠날 수 없어요. 멤버들을 모두 모은 뒤 호출해 주세요."
+        confirmLabel="택시 호출"
+        cancelLabel="취소"
+        pending={isCallPending}
+        onConfirm={() => {
+          if (isCallPending) return;
+          callMutation.mutate(undefined, {
+            onSettled: () => setCallConfirmOpen(false),
+          });
+        }}
+        onCancel={() => {
+          if (isCallPending) return;
+          setCallConfirmOpen(false);
+        }}
+      />
     </div>
   );
 }
