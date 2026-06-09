@@ -101,6 +101,11 @@ export function RoomCard({ room, isLocked = false }: Props) {
               <span className="truncate">{room.endPoint ?? "—"}</span>
             </p>
           )}
+          {room.message && room.message.trim() && (
+            <p className="truncate border-l-2 border-stroke-thin pl-2 text-[12px] italic text-fg-secondary">
+              “{room.message.trim()}”
+            </p>
+          )}
           <div className="flex items-center justify-between text-[12px] font-bold text-fg-tertiary">
             <Avatars count={room.joinedCount} />
             <span className="tabular">
